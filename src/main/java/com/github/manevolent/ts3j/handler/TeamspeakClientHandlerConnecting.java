@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.handler;
 
 import com.github.manevolent.ts3j.Teamspeak3Client;
+import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
@@ -105,6 +106,7 @@ public class TeamspeakClientHandlerConnecting extends TeamspeakClientHandler {
                     step4.setN(serverReplyStep3.getN());
                     step4.setY(y);
                     step4.setServerStuff(serverReplyStep3.getServerStuff());
+
 
                     step4.setClientIVcommand(new byte[4]); // TODO
 
