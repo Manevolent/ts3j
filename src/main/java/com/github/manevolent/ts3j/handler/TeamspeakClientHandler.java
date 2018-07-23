@@ -1,23 +1,23 @@
 package com.github.manevolent.ts3j.handler;
 
-import com.github.manevolent.ts3j.TeamspeakClient;
-import com.github.manevolent.ts3j.enums.ConnectionState;
+import com.github.manevolent.ts3j.Teamspeak3Client;
+import com.github.manevolent.ts3j.ClientConnectionState;
+import com.github.manevolent.ts3j.protocol.NetworkPacket;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
 
 public abstract class TeamspeakClientHandler {
-    private final TeamspeakClient client;
+    private final Teamspeak3Client client;
 
-    protected TeamspeakClientHandler(TeamspeakClient client) {
+    protected TeamspeakClientHandler(Teamspeak3Client client) {
         this.client = client;
     }
 
-    public void handleConnectionStateChanging(ConnectionState connectionState) {
-
+    protected final Teamspeak3Client getClient() {
+        return client;
     }
 
-    public void handleNetworkPacket(DatagramPacket packet) {
+    public void handleConnectionStateChanging(ClientConnectionState clientConnectionState) {
 
     }
 
@@ -25,7 +25,7 @@ public abstract class TeamspeakClientHandler {
 
     }
 
-    protected TeamspeakClient getClient() {
-        return client;
+    public void handlePacket(NetworkPacket packet) throws IOException {
+
     }
 }

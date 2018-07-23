@@ -1,9 +1,9 @@
 package com.github.manevolent.ts3j.handler;
 
-import com.github.manevolent.ts3j.TeamspeakClient;
+import com.github.manevolent.ts3j.Teamspeak3Client;
 
 public class TeamspeakClientHandlerDisconnected extends TeamspeakClientHandler {
-    public TeamspeakClientHandlerDisconnected(TeamspeakClient client) {
+    public TeamspeakClientHandlerDisconnected(Teamspeak3Client client) {
         super(client);
     }
 }

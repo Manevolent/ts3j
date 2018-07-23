@@ -1,6 +1,5 @@
 package com.github.manevolent.ts3j;
 
-import com.github.manevolent.ts3j.enums.ConnectionState;
 import junit.framework.TestCase;
 
 import java.net.InetSocketAddress;
@@ -11,7 +10,7 @@ public class ServerConnectionTest extends TestCase {
     }
 
     public void testParser() throws Exception {
-        TeamspeakClient client = new TeamspeakClient();
+        Teamspeak3Client client = new Teamspeak3Client();
 
         client.connect(new InetSocketAddress(
                 "voice.teamspeak.com",
@@ -20,6 +19,6 @@ public class ServerConnectionTest extends TestCase {
                 10000L
         );
 
-        assertEquals(client.getConnectionState(), ConnectionState.CONNECTED);
+        assertEquals(client.getClientConnectionState(), ClientConnectionState.CONNECTED);
     }
 }

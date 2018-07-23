@@ -1,80 +1,121 @@
 package com.github.manevolent.ts3j.handler;
 
-import com.github.manevolent.ts3j.TeamspeakClient;
-import com.github.manevolent.ts3j.enums.PacketType;
+import com.github.manevolent.ts3j.Teamspeak3Client;
+import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.math.BigInteger;
 import java.util.Random;
 
 public class TeamspeakClientHandlerConnecting extends TeamspeakClientHandler {
+    private byte[] randomBytes;
 
-
-    public TeamspeakClientHandlerConnecting(TeamspeakClient client) {
+    public TeamspeakClientHandlerConnecting(Teamspeak3Client client) {
         super(client);
     }
 
     @Override
     public void onAssigned() throws IOException {
-        Ts3Logging.debug("Connecting: sending Init1...");
+        Packet8Init1 packet = new Packet8Init1(ProtocolRole.CLIENT);
 
-        processInit1();
+        Packet8Init1.Step0 step = new Packet8Init1.Step0();
+        Random random = new Random();
+        randomBytes = new byte[4];
+        random.nextBytes(randomBytes);
+        step.setRandom(randomBytes);
+        step.setTimestamp((int) ((System.currentTimeMillis() / 1000L) & 0x000000FFFFFF));
+        packet.setStep(step);
+
+        sendInit1(packet);
     }
 
-    /**
-     * Processes the first client dispatch of the Init1 packet (C2S initial handshake packet)
-     */
-    public void processInit1() throws IOException {
-        processInit1(null);
+    private void sendInit1(Packet8Init1 packet) throws IOException {
+        Ts3Logging.debug("Connecting: sending " + packet.getClass().getSimpleName()
+                + ":"
+                + packet.getStep().getClass().getSimpleName() + "..."
+        );
+
+        packet.setVersion(new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF });
+
+        getClient().send(packet);
     }
 
-    public void processInit1(byte[] data) throws IOException {
-        int versionLen = 4;
-        int initTypeLen = 1;
-        Integer type = null;
+    @Override
+    public void handlePacket(NetworkPacket packet) throws IOException {
+        Ts3Logging.debug("Connecting: handling " + packet.getClass().getSimpleName());
 
-        if (data != null) {
-            type = (int) data[0];
+        if (packet.getPacket() instanceof Packet8Init1) {
+            Packet8Init1 init1 = (Packet8Init1) packet.getPacket();
 
-            if (data.length < initTypeLen)
-                throw new IllegalArgumentException("invalid Init1 packet (too short)");
-        }
-
-        ByteBuffer buffer = null;
-
-        if (type == null) {
-            buffer = ByteBuffer.allocate(versionLen + initTypeLen + 4 + 4 + 8);
-
-            buffer.put(new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF });
-            buffer.put((byte) 0x00); // initType
-            buffer.order(ByteOrder.BIG_ENDIAN);
-            buffer.putInt((int) (System.currentTimeMillis() / 1000L));
-
-            Random random = new Random();
-            for (int i = 0; i < 4; i++)
-                buffer.put((byte) random.nextInt(256)); // 4byte random
-        } else {
-            switch (type) {
+            switch (init1.getStep().getNumber()) {
                 case 1:
+                    Packet8Init1.Step1 serverReplyStep1 = (Packet8Init1.Step1)init1.getStep();
+                    // Check nonce.  It's received backwards, so walk backwards over the array received
+                    for (int i = 0; i < 4; i ++) {
+                        if (randomBytes[3 - i] != serverReplyStep1.getA0reversed()[i])
+                            throw new IllegalArgumentException("invalid server nonce");
+                    }
 
+                    // Build response
+                    Packet8Init1 response2 = new Packet8Init1(ProtocolRole.CLIENT);
+
+                    Packet8Init1.Step2 step2 = new Packet8Init1.Step2();
+                    step2.setA0reversed(serverReplyStep1.getA0reversed());
+                    step2.setServerStuff(serverReplyStep1.getServerStuff());
+                    response2.setStep(step2);
+
+                    sendInit1(response2);
                     break;
                 case 3:
+                    Packet8Init1.Step3 serverReplyStep3 = (Packet8Init1.Step3)init1.getStep();
 
-                    break;
-                case 0x7F:
-                    // 0x7F: Some strange servers do this
-                    // the normal client responds by starting again
+                    // Calculate 'y'
+                    // which is the result of x ^ (2 ^ level) % n as an unsigned
+                    // BigInteger. Padded from the lower side with '0x00' when shorter
+                    // than 64 bytes.
+                    // CITE: https://github.com/Splamy/TS3AudioBot/blob/master/TS3Client/Full/Ts3Crypt.cs
+                    // Prepare solution
+                    if (serverReplyStep3.getLevel() < 0 || serverReplyStep3.getLevel() > 1_000_000)
+                        throw new IllegalArgumentException("RSA challange level is not within an acceptable range");
+
+                    BigInteger x = new BigInteger(1, serverReplyStep3.getX());
+                    BigInteger n = new BigInteger(1, serverReplyStep3.getN());
+
+                    byte[] y = new byte[64];
+
+                    byte[] solution =
+                            x.modPow(BigInteger.valueOf(2L).pow(serverReplyStep3.getLevel()), n).toByteArray();
+
+                    System.arraycopy(
+                            solution, Math.max(0, solution.length - 64),
+                            y, 64 - solution.length,
+                            solution.length
+                    );
+
+                    // Build response
+                    Packet8Init1 response4 = new Packet8Init1(ProtocolRole.CLIENT);
+
+                    Packet8Init1.Step4 step4 = new Packet8Init1.Step4();
+
+                    step4.setLevel(serverReplyStep3.getLevel());
+                    step4.setX(serverReplyStep3.getX());
+                    step4.setN(serverReplyStep3.getN());
+                    step4.setY(y);
+                    step4.setServerStuff(serverReplyStep3.getServerStuff());
+
+                    step4.setClientIVcommand(new byte[4]); // TODO
+
+                    response4.setStep(step4);
+
+                    sendInit1(response4);
                     break;
                 default:
-                    throw new IllegalArgumentException("invalid Init1 packet id: " + type);
+                    throw new IllegalArgumentException("unexpected Init1 server step: " + init1.getStep().getNumber());
+
             }
         }
-
-        if (buffer == null || buffer.position() <= 0)
-            throw new IllegalStateException("invalid send buffer");
-
-        getClient().send(PacketType.INIT, buffer.array());
     }
 }
