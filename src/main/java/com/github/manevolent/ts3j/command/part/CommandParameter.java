@@ -1,5 +1,7 @@
 package com.github.manevolent.ts3j.command.part;
 
+import java.util.Base64;
+
 public interface CommandParameter {
 
     String getName();
@@ -13,6 +15,12 @@ public interface CommandParameter {
     void set(long value);
     void set(float value);
     void set(double value);
+
+    default void set(byte[] value) {
+        set(Base64.getEncoder().encodeToString(value));
+    }
+
+    String getValue();
 
     /**
      * Converts the command part to a usable command string element.

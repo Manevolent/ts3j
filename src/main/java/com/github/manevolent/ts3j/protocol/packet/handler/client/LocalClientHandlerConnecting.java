@@ -1,17 +1,31 @@
 package com.github.manevolent.ts3j.protocol.packet.handler.client;
 
-import com.github.manevolent.ts3j.command.type.client.ClientInitIV;
+import com.github.manevolent.ts3j.command.SimpleCommand;
+import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
+import com.github.manevolent.ts3j.license.License;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
 import com.github.manevolent.ts3j.protocol.packet.Packet2Command;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Logging;
+import net.i2p.crypto.eddsa.math.GroupElement;
+import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
+import org.bouncycastle.asn1.x9.X9ObjectIdentifiers;
+import org.bouncycastle.crypto.Signer;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.params.ECPublicKeyParameters;
+import org.bouncycastle.crypto.signers.DSADigestSigner;
+import org.bouncycastle.crypto.signers.ECDSASigner;
+import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Base64;
+import java.util.List;
 import java.util.Random;
 
 public class LocalClientHandlerConnecting extends LocalClientHandler {
@@ -118,14 +132,22 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     alphaBytes = new byte[10];
                     new Random().nextBytes(alphaBytes);
 
-                    ClientInitIV command = new ClientInitIV();
+                    SimpleCommand initiv = new SimpleCommand("clientinitiv", ProtocolRole.CLIENT);
 
-                    command.get("alpha").set(Base64.getEncoder().encodeToString(alphaBytes));
-                    command.get("omega").set(getClient().getLocalIdentity().getPublicKeyString());
-                    command.get("ot").set(1); // ?
-                    command.get("ip").set(null);
+                    initiv.add(new CommandSingleParameter("alpha", Base64.getEncoder().encodeToString(alphaBytes)));
 
-                    step4.setClientIVcommand(command.build().getBytes(Charset.forName("UTF8")));
+                    initiv.add(new CommandSingleParameter("omega", getClient().getLocalIdentity().getPublicKeyString()));
+
+                    initiv.add(new CommandSingleParameter("ot", "1")); // constant, set to 1
+
+                    initiv.add(
+                            new CommandSingleParameter(
+                                "ip",
+                                getClient().getOption("client.hostname", String.class)
+                            )
+                    );
+
+                    step4.setClientIVcommand(initiv.build().getBytes(Charset.forName("UTF8")));
 
                     response4.setStep(step4);
 
@@ -136,7 +158,38 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getPacket() instanceof Packet2Command) {
-            Ts3Logging.debug(((Packet2Command) packet.getPacket()).getText());
+            SimpleCommand command = ((Packet2Command) packet.getPacket()).parse();
+
+            if (command.getName().equalsIgnoreCase("initivexpand2")) {
+                // 3.2.2 initivexpand2 (Client <- Server)
+
+                Ts3Logging.debug("initivexpand2");
+
+                if (!command.get("ot").getValue().equals("1"))
+                    throw new IllegalArgumentException("ot constant != 1: " + command.get("ot").getValue());
+
+                byte[] license = Base64.getDecoder().decode(command.get("l").getValue());
+                byte[] licsense_validation = command.get("tvd").getValue() == null ?
+                        null :
+                        Base64.getDecoder().decode(command.get("tvd").getValue());
+
+                byte[] random = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
+                byte[] publicKeyBytes = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
+                byte[] proof = Base64.getDecoder().decode(command.get("proof").getValue()); // ecdh_sign(1)
+
+                // 3.2.1.1 Verify integrity
+                // The proof parameter is the sign of the l parameter (not base64 encoded). The client can verify the l
+                // parameter with the public key of the server which is sent in omega.
+
+                ECPoint publicKey = Ts3Crypt.decodePublicKey(publicKeyBytes);
+
+                if (!Ts3Crypt.verifySignature(publicKey, license, proof))
+                    throw new SecurityException("invalid proof signature: " + Ts3Logging.getHex(proof));
+
+                // 3.2.2.2 Parsing the license
+                List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));
+
+            }
         }
     }
 }

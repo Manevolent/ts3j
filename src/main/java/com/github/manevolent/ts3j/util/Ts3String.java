@@ -43,7 +43,7 @@ public final class Ts3String {
                     default:
                         throw new IllegalArgumentException("invalid escape code: " + c);
                 }
-            }
+            } else sb.append(c);
         }
 
         return sb.toString();

@@ -59,6 +59,11 @@ public class CommandOption implements CommandParameter {
     }
 
     @Override
+    public String getValue() {
+        return enabled ? "true" : "false";
+    }
+
+    @Override
     public String toString() {
         if (enabled)
             return "-" + key;

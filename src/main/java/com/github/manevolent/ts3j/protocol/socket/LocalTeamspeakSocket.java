@@ -60,9 +60,10 @@ public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements Tea
             packet.setSocketAddress(datagramSocket.getRemoteSocketAddress());
 
         Ts3Logging.debug(
-                "[NETWORK] WRITE Len=" + packet.getLength() + " to " + packet.getSocketAddress() +
-                        "\n" + Ts3Logging.getHex(packet.getData(), packet.getLength())
+                "[NETWORK] WRITE Len=" + packet.getLength() + " to " + packet.getSocketAddress()
         );
+
+        //Ts3Logging.debug(Ts3Logging.getHex(packet.getData(), packet.getLength()));
 
         datagramSocket.send(packet);
     }
@@ -116,9 +117,10 @@ public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements Tea
         datagramSocket.receive(datagramPacket);
 
         Ts3Logging.debug(
-                "[NETWORK] READ Len=" + datagramPacket.getLength() + " from " + datagramPacket.getSocketAddress() +
-                        "\n" + Ts3Logging.getHex(datagramPacket.getData(), datagramPacket.getLength())
+                "[NETWORK] READ Len=" + datagramPacket.getLength() + " from " + datagramPacket.getSocketAddress()
         );
+
+        //Ts3Logging.debug(Ts3Logging.getHex(datagramPacket.getData(), datagramPacket.getLength()));
 
         return datagramPacket;
     }

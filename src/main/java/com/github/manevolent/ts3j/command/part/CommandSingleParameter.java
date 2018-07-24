@@ -10,6 +10,11 @@ public class CommandSingleParameter implements CommandParameter {
         this.key = key;
     }
 
+    public CommandSingleParameter(String key, String value) {
+        this.key = key;
+        this.value = value;
+    }
+
     @Override
     public String toString() {
         if (value == null)
@@ -66,5 +71,10 @@ public class CommandSingleParameter implements CommandParameter {
     @Override
     public void set(double value) {
         this.value = Double.toString(value);
+    }
+
+    @Override
+    public String getValue() {
+        return value;
     }
 }

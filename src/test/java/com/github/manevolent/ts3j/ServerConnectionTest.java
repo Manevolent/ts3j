@@ -21,7 +21,7 @@ public class ServerConnectionTest extends TestCase {
             client.setLocalIdentity(localIdentity);
 
             client.connect(new InetSocketAddress(
-                            "voice.teamspeak.com",
+                            "ts.teamlixo.net",
                             9987),
                     null,
                     10000L

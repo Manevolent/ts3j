@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet;
 
+import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
@@ -15,6 +16,10 @@ public class Packet2Command extends Packet {
 
     public String getText() {
         return text;
+    }
+
+    public SimpleCommand parse() {
+        return SimpleCommand.parse(getRole(), getText());
     }
 
     public void setText(String text) {

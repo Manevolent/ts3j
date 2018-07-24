@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.identity;
 
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.DERBitString;
@@ -34,7 +35,7 @@ public class Identity {
     public Identity(ECPoint publicKey) {
         this.publicKey = publicKey;
 
-        this.publicKeyString = Base64.getEncoder().encodeToString(encodePublicKey());
+        this.publicKeyString = Base64.getEncoder().encodeToString(Ts3Crypt.encodePublicKey(publicKey));
         this.fingerprint = generateFingerprint();
     }
 
@@ -136,24 +137,9 @@ public class Identity {
         return curr;
     }
 
-    private byte[] encodePublicKey() {
-        try {
-            byte[] dataArray = new DERSequence(new ASN1Encodable[]{
-                    new DERBitString(new byte[]{0b0000_0000}, 7),
-                    new DERInteger(32),
-                    new DERInteger(publicKey.getAffineXCoord().toBigInteger()),
-                    new DERInteger(publicKey.getAffineYCoord().toBigInteger())
-            }).getEncoded();
-
-            return dataArray;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private String generateFingerprint() {
         synchronized (sha1) {
-            return Base64.getEncoder().encodeToString(sha1.digest(encodePublicKey()));
+            return Base64.getEncoder().encodeToString(sha1.digest(Ts3Crypt.encodePublicKey(publicKey)));
         }
     }
 }
