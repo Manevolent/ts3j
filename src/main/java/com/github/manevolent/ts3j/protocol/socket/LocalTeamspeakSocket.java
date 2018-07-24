@@ -1,14 +1,14 @@
-package com.github.manevolent.ts3j.protocol;
+package com.github.manevolent.ts3j.protocol.socket;
 
+import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.SocketRole;
+import com.github.manevolent.ts3j.protocol.TeamspeakSocket;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.Packet;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.SocketAddress;
-import java.net.SocketException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -17,23 +17,31 @@ import java.nio.ByteOrder;
  *
  * Used simply to transcribe packets on the network
  */
-public final class Teamspeak3Socket {
+public class LocalTeamspeakSocket implements TeamspeakSocket {
     private final SocketRole socketRole;
 
     private final DatagramSocket datagramSocket;
     private final DatagramPacket datagramPacket = new DatagramPacket(new byte[1500], 1500);
 
-    public Teamspeak3Socket(SocketRole socketRole, DatagramSocket datagramSocket) {
+    public LocalTeamspeakSocket(SocketRole socketRole, DatagramSocket datagramSocket) {
         this.socketRole = socketRole;
         this.datagramSocket = datagramSocket;
     }
 
-    public Teamspeak3Socket(SocketRole socketRole) throws SocketException {
+    public LocalTeamspeakSocket(SocketRole socketRole) throws SocketException {
         this(socketRole, new DatagramSocket());
     }
 
     public SocketRole getSocketRole() {
         return socketRole;
+    }
+
+    public InetSocketAddress getLocalAddress() {
+        return new InetSocketAddress(datagramSocket.getLocalAddress(), datagramSocket.getLocalPort());
+    }
+
+    public InetSocketAddress getRemoteAddress() {
+        return new InetSocketAddress(datagramSocket.getInetAddress(), datagramSocket.getPort());
     }
 
     public void connect(SocketAddress remote) throws SocketException {
@@ -116,4 +124,5 @@ public final class Teamspeak3Socket {
 
         return networkPacket;
     }
+
 }

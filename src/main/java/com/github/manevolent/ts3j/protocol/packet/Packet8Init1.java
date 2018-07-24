@@ -90,6 +90,9 @@ public class Packet8Init1 extends Packet {
             case 3:
                 step = new Step3();
                 break;
+            case 4:
+                step = new Step4();
+                break;
             default:
                 throw new IllegalArgumentException("invalid Init1 step: " + stepNumber);
         }

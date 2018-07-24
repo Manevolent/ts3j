@@ -18,8 +18,8 @@ public final class Ts3Logging {
         System.err.println("[INFO] " + message);
     }
 
-    public static void debug(String message) {
-        System.err.println("[DEBUG] " + message);
+    public static void debug(Object message) {
+        System.err.println("[DEBUG] " + message.toString());
     }
 
     public static void debug(String message, Throwable ex) {

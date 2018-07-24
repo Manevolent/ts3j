@@ -1,20 +1,23 @@
-package com.github.manevolent.ts3j.handler;
+package com.github.manevolent.ts3j.protocol.packet.handler.client;
 
-import com.github.manevolent.ts3j.Teamspeak3Client;
-import com.github.manevolent.ts3j.command.Command;
+import com.github.manevolent.ts3j.command.type.client.ClientInitIV;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.util.Base64;
 import java.util.Random;
 
-public class TeamspeakClientHandlerConnecting extends TeamspeakClientHandler {
+public class LocalClientHandlerConnecting extends LocalClientHandler {
     private byte[] randomBytes;
+    private byte[] alphaBytes;
 
-    public TeamspeakClientHandlerConnecting(Teamspeak3Client client) {
+    public LocalClientHandlerConnecting(LocalTeamspeakClient client) {
         super(client);
     }
 
@@ -90,10 +93,12 @@ public class TeamspeakClientHandlerConnecting extends TeamspeakClientHandler {
                     byte[] solution =
                             x.modPow(BigInteger.valueOf(2L).pow(serverReplyStep3.getLevel()), n).toByteArray();
 
+                    Ts3Logging.debug(Ts3Logging.getHex(solution));
+
                     System.arraycopy(
-                            solution, Math.max(0, solution.length - 64),
-                            y, 64 - solution.length,
-                            solution.length
+                            solution, Math.abs(solution.length - 64),
+                            y, solution.length < 64 ? 64 - solution.length : 0,
+                            solution.length < 64 ? solution.length : 64
                     );
 
                     // Build response
@@ -107,8 +112,17 @@ public class TeamspeakClientHandlerConnecting extends TeamspeakClientHandler {
                     step4.setY(y);
                     step4.setServerStuff(serverReplyStep3.getServerStuff());
 
+                    alphaBytes = new byte[10];
+                    new Random().nextBytes(alphaBytes);
 
-                    step4.setClientIVcommand(new byte[4]); // TODO
+                    ClientInitIV command = new ClientInitIV();
+
+                    command.get("alpha").set(Base64.getEncoder().encodeToString(alphaBytes));
+                    command.get("omega").set(getClient().getLocalIdentity().getPublicKeyString());
+                    command.get("ot").set(1); // ?
+                    command.get("ip").set(null);
+
+                    step4.setClientIVcommand(command.build().getBytes(Charset.forName("UTF8")));
 
                     response4.setStep(step4);
 

@@ -1,5 +1,8 @@
 package com.github.manevolent.ts3j;
 
+import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
+import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
 import junit.framework.TestCase;
 
 import java.net.InetSocketAddress;
@@ -10,15 +13,23 @@ public class ServerConnectionTest extends TestCase {
     }
 
     public void testParser() throws Exception {
-        Teamspeak3Client client = new Teamspeak3Client();
+        try {
+            LocalIdentity localIdentity = LocalIdentity.generateNew(8);
 
-        client.connect(new InetSocketAddress(
-                "voice.teamspeak.com",
-                        9987),
-                null,
-                10000L
-        );
+            LocalTeamspeakClient client = new LocalTeamspeakClient();
 
-        assertEquals(client.getClientConnectionState(), ClientConnectionState.CONNECTED);
+            client.setLocalIdentity(localIdentity);
+
+            client.connect(new InetSocketAddress(
+                            "voice.teamspeak.com",
+                            9987),
+                    null,
+                    10000L
+            );
+
+            assertEquals(client.getClientConnectionState(), ClientConnectionState.CONNECTED);
+        } catch (Throwable ex) {
+            ex.printStackTrace();
+        }
     }
 }

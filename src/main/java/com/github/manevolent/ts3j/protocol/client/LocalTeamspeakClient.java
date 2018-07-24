@@ -1,50 +1,71 @@
-package com.github.manevolent.ts3j;
+package com.github.manevolent.ts3j.protocol.client;
 
 import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
-import com.github.manevolent.ts3j.handler.TeamspeakClientHandler;
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.protocol.LocalEndpoint;
 import com.github.manevolent.ts3j.protocol.SocketRole;
-import com.github.manevolent.ts3j.protocol.Teamspeak3Socket;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandler;
+import com.github.manevolent.ts3j.protocol.socket.LocalTeamspeakSocket;
 import com.github.manevolent.ts3j.protocol.packet.Packet;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
-import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
-public class Teamspeak3Client {
-    private final PacketReceiver packetReceiver = new PacketReceiver();
-
-    private final Teamspeak3Socket socket;
+public class LocalTeamspeakClient extends LocalEndpoint implements TeamspeakClient {
     private final Object connectionStateLock = new Object();
 
     private final Map<String, Object> clientOptions = new LinkedHashMap<>();
 
-    private TeamspeakClientHandler handler;
-
-    private InetSocketAddress remote = null;
+    private LocalClientHandler handler;
     private ClientConnectionState clientConnectionState = null;
+
     private int returnCodeIndex = 0;
 
-    public Teamspeak3Client(DatagramSocket datagramSocket) throws SocketException {
-        this.socket = new Teamspeak3Socket(SocketRole.CLIENT, datagramSocket);
+    public LocalTeamspeakClient(LocalTeamspeakSocket socket) {
+        super(socket);
+
+        if (socket.getSocketRole() != SocketRole.CLIENT)
+            throw new IllegalArgumentException("invalid socket role: " + socket.getSocketRole().name());
 
         setClientConnectionState(ClientConnectionState.DISCONNECTED);
     }
 
-    public Teamspeak3Client() throws SocketException {
-        this(new DatagramSocket());
+    public CommandResponse sendCommand(Command command) throws IOException {
+        if (command.willExpectResponse() && !isConnected())
+            throw new IOException("not connected");
+
+        CommandResponse response;
+
+        if (command.willExpectResponse()) {
+            int returnCodeIndex = ++ this.returnCodeIndex;
+            //command.appendParameter(new CommandSingleParameter("return_code", returnCodeIndex));
+            response = new CommandResponse(command, returnCodeIndex);
+        } else {
+            response = new CommandResponse(command, -1);
+        }
+
+        String commandString = command.toString();
+
+        response.setDispatchedTime(System.currentTimeMillis());
+
+        return response;
     }
 
-    public InetSocketAddress getRemote() {
-        return remote;
+    public LocalTeamspeakClient() throws SocketException {
+        this(new LocalTeamspeakSocket(SocketRole.CLIENT));
+    }
+
+    @Override
+    public SocketRole getRole() {
+        return SocketRole.CLIENT;
     }
 
     public void send(Packet packet) throws IOException {
@@ -53,7 +74,7 @@ public class Teamspeak3Client {
 
         packet.setHeaderValues(header);
 
-        socket.send(header, packet);
+        getSocket().send(header, packet);
     }
 
     protected void setClientConnectionState(ClientConnectionState state) {
@@ -65,13 +86,8 @@ public class Teamspeak3Client {
 
                 this.clientConnectionState = state;
 
-                if (wasDisconnected) {
-                    Ts3Logging.debug("Starting network receiver thread...");
-
-                    Thread receiverThread = new Thread(new PacketReceiver());
-                    receiverThread.setDaemon(true);
-                    receiverThread.start();
-                }
+                if (wasDisconnected)
+                    setRunning(true);
 
                 if (handler != null)
                     handler.handleConnectionStateChanging(state);
@@ -82,7 +98,7 @@ public class Teamspeak3Client {
                     handler = state.createHandler(this);
 
                     try {
-                        handler.onAssigned();
+                        setHandler(handler);
                     } catch (IOException e) {
                         throw new IllegalStateException(e);
                     }
@@ -100,6 +116,11 @@ public class Teamspeak3Client {
 
     public boolean isConnected() {
         return clientConnectionState == ClientConnectionState.CONNECTED;
+    }
+
+    @Override
+    public Map<String, Object> getOptions() {
+        return clientOptions;
     }
 
     public ClientConnectionState getClientConnectionState() {
@@ -120,46 +141,6 @@ public class Teamspeak3Client {
         }
     }
 
-    public <T extends Object> T getOption(String key, Class<T> clazz) {
-        Object value = clientOptions.get(key);
-
-        if (value == null) return (T) null;
-
-        else if (!value.getClass().isAssignableFrom(clazz)) {
-            throw new ClassCastException(
-                    clazz.getName()
-                    + " is not assignable to option type " +
-                    value.getClass().getName()
-            );
-        } else
-            return (T) value;
-    }
-
-    public Object setOption(String key, Object value) {
-        return clientOptions.put(key, value);
-    }
-
-    public CommandResponse sendCommand(Command command) throws IOException {
-        if (command.willExpectResponse() && !isConnected())
-            throw new IOException("not connected");
-
-        CommandResponse response;
-
-        if (command.willExpectResponse()) {
-            int returnCodeIndex = ++ this.returnCodeIndex;
-            command.appendParameter(new CommandSingleParameter("return_code", returnCodeIndex));
-            response = new CommandResponse(command, returnCodeIndex);
-        } else {
-            response = new CommandResponse(command, -1);
-        }
-
-        String commandString = command.toString();
-
-        response.setDispatchedTime(System.currentTimeMillis());
-
-        return response;
-    }
-
     public void connect(InetSocketAddress remote, String password, long timeout) throws IOException {
         try {
             if (clientConnectionState != ClientConnectionState.DISCONNECTED)
@@ -168,7 +149,7 @@ public class Teamspeak3Client {
             setOption("client.hostname", remote.getHostString());
             setOption("client.password", password);
 
-            socket.connect(remote);
+            getSocket().connect(remote);
 
             setClientConnectionState(ClientConnectionState.CONNECTING);
             joinConnectionState(ClientConnectionState.CONNECTED, timeout);
@@ -176,27 +157,6 @@ public class Teamspeak3Client {
             setClientConnectionState(ClientConnectionState.DISCONNECTED);
 
             throw new IOException(e);
-        }
-    }
-
-    private void handlePacket(NetworkPacket packet) throws Exception {
-        if (handler != null) handler.handlePacket(packet);
-    }
-
-    private class PacketReceiver implements Runnable {
-        @Override
-        public void run() {
-            Ts3Logging.debug("Entering packet receiver");
-
-            while (clientConnectionState != ClientConnectionState.DISCONNECTED) {
-                try {
-                    handlePacket(socket.receive());
-                } catch (Exception e) {
-                    Ts3Logging.debug("Problem handling packet", e);
-                }
-            }
-
-            Ts3Logging.debug("Leaving packet receiver");
         }
     }
 }
