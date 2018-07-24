@@ -52,7 +52,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
     @Override
     public void handlePacket(NetworkPacket packet) throws IOException {
-        Ts3Logging.debug("Connecting: handling " + packet.getClass().getSimpleName());
+        Ts3Logging.debug("Connecting: handling " + packet.getPacket().getClass().getSimpleName());
 
         if (packet.getPacket() instanceof Packet8Init1) {
             Packet8Init1 init1 = (Packet8Init1) packet.getPacket();
@@ -136,7 +136,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getPacket() instanceof Packet2Command) {
-
+            Ts3Logging.debug(((Packet2Command) packet.getPacket()).getText());
         }
     }
 }

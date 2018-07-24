@@ -49,35 +49,43 @@ public final class NetworkPacket {
      * Writes the existing data out to the specified byte buffer
      * @param buffer Buffer to write to
      */
-    public void write(ByteBuffer buffer) {
+    public ByteBuffer write(ByteBuffer buffer) {
         writeHeader(buffer);
         writeBody(buffer);
+
+        return buffer;
     }
 
-    public void writeHeader(ByteBuffer buffer) {
+    public ByteBuffer writeHeader(ByteBuffer buffer) {
         if (getHeader() == null) throw new NullPointerException("header");
 
         getHeader().setType(getPacket().getType());
 
         getHeader().write(buffer);
+
+        return buffer;
     }
 
-    public void writeBody(ByteBuffer buffer) {
+    public ByteBuffer writeBody(ByteBuffer buffer) {
         if (getPacket() == null) throw new NullPointerException("packet");
 
         getPacket().write(buffer);
+
+        return buffer;
     }
 
     /**
      * Reads data from the specified byte buffer, filling in the packet body as needed.
      * @param buffer Buffer to read from.
      */
-    public void read(ByteBuffer buffer) {
+    public ByteBuffer read(ByteBuffer buffer) {
         readHeader(buffer);
         readBody(buffer);
+
+        return buffer;
     }
 
-    public void readHeader(ByteBuffer buffer) {
+    public ByteBuffer readHeader(ByteBuffer buffer) {
         if (getHeader() == null) {
             try {
                 setHeader(getRole().getHeaderClass().newInstance());
@@ -87,9 +95,11 @@ public final class NetworkPacket {
         }
 
         getHeader().read(buffer);
+
+        return buffer;
     }
 
-    public void readBody(ByteBuffer buffer) {
+    public ByteBuffer readBody(ByteBuffer buffer) {
         if (getPacket() == null) {
             try {
                 setPacket(
@@ -103,6 +113,8 @@ public final class NetworkPacket {
         }
 
         getPacket().read(buffer);
+
+        return buffer;
     }
 
     /**

@@ -5,12 +5,11 @@ public enum PacketType {
     VOICE_WHISPER(0x1, null, null, false, false, false, false),
     PONG(0x5, null, null, false, false, false, false),
     PING(0x4, null, PONG, false, false, false, false),
-    ACK(0x6, null, null, true, true, false, false),
+    ACK(0x6, Packet6Ack.class, null, true, true, false, false),
     ACK_LOW(0x7, null, null, true, true, false, false),
     INIT1(0x8, Packet8Init1.class, null, false, true, false, false),
     COMMAND_LOW(0x3, null, ACK_LOW, true, true, true, true),
-    COMMAND(0x2, Packet2Command.class, ACK, true, true, true, true)
-    ;
+    COMMAND(0x2, Packet2Command.class, ACK, true, true, true, true);
 
     private final int index;
     private final Class<? extends Packet> packetClass;

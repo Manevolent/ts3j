@@ -5,6 +5,8 @@ import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.Packet;
+import com.github.manevolent.ts3j.protocol.packet.PacketFragment;
+import com.github.manevolent.ts3j.protocol.packet.PacketType;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
@@ -78,28 +80,25 @@ public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements Tea
                     header.getRole().name() + " != " +
                     getSocketRole().getOut().name());
 
+        // Ensure type matches
+        header.setType(packet.getType());
+
+        // Construct a network packet
         NetworkPacket networkPacket = new NetworkPacket(header.getRole());
         networkPacket.setHeader(header);
         networkPacket.setPacket(packet);
 
-        if (networkPacket.getHeader().getMac() == null) {
-            // Generate mac?
-        }
-
-        ByteBuffer outputBuffer = ByteBuffer.allocate(networkPacket.getSize());
-        outputBuffer.order(ByteOrder.BIG_ENDIAN);
-        networkPacket.writeHeader(outputBuffer);
+        // Flush to a buffer
+        ByteBuffer outputBuffer;
 
         if (networkPacket.getHeader().getType().isEncrypted() &&
                 !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
-            ByteBuffer encryptionBuffer = ByteBuffer.allocate(500);
-            networkPacket.writeBody(encryptionBuffer);
-
-            byte[] unencryptedBody = new byte[encryptionBuffer.position()];
-            System.arraycopy(encryptionBuffer.array(), 0, unencryptedBody, 0, unencryptedBody.length);
-
-            outputBuffer.put(getPacketTransformation().encrypt(header, unencryptedBody));
+            outputBuffer = getPacketTransformation().encrypt(networkPacket);
         } else {
+            outputBuffer = ByteBuffer.allocate(networkPacket.getSize());
+
+            outputBuffer.order(ByteOrder.BIG_ENDIAN);
+            networkPacket.writeHeader(outputBuffer);
             networkPacket.writeBody(outputBuffer);
         }
 
@@ -117,7 +116,7 @@ public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements Tea
         datagramSocket.receive(datagramPacket);
 
         Ts3Logging.debug(
-                "[NETWORK] READ Len=" + datagramPacket.getLength() + " to " + datagramPacket.getSocketAddress() +
+                "[NETWORK] READ Len=" + datagramPacket.getLength() + " from " + datagramPacket.getSocketAddress() +
                         "\n" + Ts3Logging.getHex(datagramPacket.getData(), datagramPacket.getLength())
         );
 
@@ -125,27 +124,51 @@ public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements Tea
     }
 
     public NetworkPacket receive() throws IOException {
-        DatagramPacket datagramPacket = receiveNetworkPacket();
+        while (true) {
+            DatagramPacket datagramPacket = receiveNetworkPacket();
 
-        NetworkPacket networkPacket = new NetworkPacket(getSocketRole().getIn());
+            NetworkPacket networkPacket = new NetworkPacket(getSocketRole().getIn());
 
-        ByteBuffer buffer = ByteBuffer.wrap(datagramPacket.getData());
-        networkPacket.readHeader(buffer);
+            ByteBuffer buffer = ByteBuffer.wrap(datagramPacket.getData());
+            networkPacket.readHeader(buffer);
 
-        Ts3Logging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
+            boolean fragment = networkPacket.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED);
+            if (fragment && !networkPacket.getHeader().getType().isSplittable()) continue; // drop packet
 
-        if (networkPacket.getHeader().getType().isEncrypted()) {
-            byte[] transformBuffer = new byte[buffer.remaining()];
-            buffer.get(transformBuffer);
+            ByteBuffer packetBuffer;
 
-            networkPacket.readBody(ByteBuffer.wrap(
-                    getPacketTransformation().decrypt(networkPacket.getHeader(), transformBuffer)
-            ));
-        } else {
-            networkPacket.readBody(buffer);
+            if (networkPacket.getHeader().getType().isEncrypted()) {
+                packetBuffer = ByteBuffer.wrap(
+                        getPacketTransformation().decrypt(
+                                networkPacket.getHeader(),
+                                buffer,
+                                datagramPacket.getLength() - networkPacket.getHeader().getSize()
+                        )
+                );
+            } else {
+                packetBuffer = buffer;
+            }
+
+            if (fragment) {
+                Ts3Logging.debug("[PROTOCOL] READ " +
+                        networkPacket.getHeader().getType().name() + " fragment");
+
+                networkPacket.setPacket(
+                        new PacketFragment(
+                                networkPacket.getHeader().getType(),
+                                getSocketRole().getIn()
+                        )
+                );
+            } else {
+                Ts3Logging.debug("[PROTOCOL] READ " +
+                        networkPacket.getHeader().getType().name());
+            }
+
+
+            networkPacket.readBody(packetBuffer);
+
+            return networkPacket;
         }
-
-        return networkPacket;
     }
 
 }

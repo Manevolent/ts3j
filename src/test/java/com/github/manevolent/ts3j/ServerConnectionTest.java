@@ -27,7 +27,7 @@ public class ServerConnectionTest extends TestCase {
                     10000L
             );
 
-            assertEquals(client.getClientConnectionState(), ClientConnectionState.CONNECTED);
+            assertEquals(client.getConnectionState(), ClientConnectionState.CONNECTED);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

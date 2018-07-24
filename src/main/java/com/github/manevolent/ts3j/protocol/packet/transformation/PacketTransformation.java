@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet.transformation;
 
+import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.util.Ts3Logging;
@@ -17,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class PacketTransformation {
+    private static final int MAC_LEN = 8;
     private static MessageDigest SHA256;
 
     {
@@ -70,33 +72,34 @@ public class PacketTransformation {
         return new Pair<>(key, nonce);
     }
 
-    public byte[] encrypt(PacketHeader header, byte[] body) {
-        return transform(header, body, true);
-    }
+    public ByteBuffer encrypt(NetworkPacket packet) {
+        Pair<byte[], byte[]> parameters = computeParameters(packet.getHeader());
 
-    public byte[] decrypt(PacketHeader header, byte[] body) {
-        return transform(header, body, false);
-    }
+        // Write header (this is temporary)
+        ByteBuffer headerBuffer = packet.writeHeader(ByteBuffer.allocate(packet.getHeader().getSize()));
 
-    private byte[] transform(PacketHeader header, byte[] body, boolean encrypt) {
-        Pair<byte[], byte[]> parameters = computeParameters(header);
+        // Get the header without a MAC for the associated text field
+        byte[] headerWithoutMac = new byte[packet.getHeader().getSize() - MAC_LEN];
+        System.arraycopy(headerBuffer.array(), MAC_LEN, headerWithoutMac, 0, headerWithoutMac.length);
 
-        byte[] associatedText = new byte[8];
-
-        CipherParameters cipherParameters = new AEADParameters(new KeyParameter(
-                parameters.getKey()),
-                8 * associatedText.length,
+        CipherParameters cipherParameters = new AEADParameters(
+                new KeyParameter(parameters.getKey()),
+                8 * MAC_LEN,
                 parameters.getValue(),
-                encrypt ? associatedText : header.getMac()
+                headerWithoutMac
         );
+
+        int dataLen = packet.getPacket().getSize();
+        ByteBuffer packetBuffer = packet.writeBody(ByteBuffer.allocate(dataLen));
 
         byte[] result;
         int len;
-        synchronized (cipher){
-            cipher.init(encrypt, cipherParameters);
 
-            result = new byte[cipher.getOutputSize(body.length)];
-            len = cipher.processBytes(body, 0, body.length, result, 0);
+        synchronized (cipher) {
+            cipher.init(true, cipherParameters);
+
+            result = new byte[cipher.getOutputSize(dataLen)];
+            len = cipher.processBytes(packetBuffer.array(), 0, dataLen, result, 0);
 
             try {
                 len += cipher.doFinal(result, len);
@@ -105,12 +108,56 @@ public class PacketTransformation {
             }
         }
 
-        byte[] output = new byte[len];
-        System.arraycopy(result, 0, output, 0, len);
+        ByteBuffer outputBuffer = ByteBuffer.allocate(MAC_LEN + headerWithoutMac.length + (len - MAC_LEN));
 
-        if (encrypt)
-            header.setMac(associatedText);
+        // MAC
+        outputBuffer.put(result, len - MAC_LEN, MAC_LEN);
 
-        return output;
+        // Rest of header
+        outputBuffer.put(headerWithoutMac);
+
+        // Encrypted body
+        outputBuffer.put(result, 0, len - MAC_LEN);
+
+        return outputBuffer;
+    }
+
+    public byte[] decrypt(PacketHeader header, ByteBuffer buffer, int dataLen) {
+        Pair<byte[], byte[]> parameters = computeParameters(header);
+
+        byte[] headerWithoutMac = new byte[header.getSize() - MAC_LEN];
+        System.arraycopy(buffer.array(), MAC_LEN, headerWithoutMac, 0, headerWithoutMac.length);
+
+        // Get the header without a MAC for the associated text field
+        CipherParameters cipherParameters = new AEADParameters(
+                new KeyParameter(parameters.getKey()),
+                8 * MAC_LEN,
+                parameters.getValue(),
+                headerWithoutMac
+        );
+
+        byte[] result;
+        int len;
+
+        synchronized (cipher) {
+
+            cipher.init(false, cipherParameters);
+            result = new byte[cipher.getOutputSize(dataLen + MAC_LEN)];
+
+            len = cipher.processBytes(buffer.array(), header.getSize(), dataLen, result, 0);
+            len += cipher.processBytes(buffer.array(), 0, MAC_LEN, result, len);
+            try {
+                len += cipher.doFinal(result, len);
+            } catch (InvalidCipherTextException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (len != dataLen)
+                throw new IllegalArgumentException(len + " != " + dataLen);
+
+        }
+
+
+        return result;
     }
 }
