@@ -2,7 +2,7 @@ package com.github.manevolent.ts3j.protocol.socket;
 
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.SocketRole;
-import com.github.manevolent.ts3j.protocol.TeamspeakSocket;
+import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.Packet;
 import com.github.manevolent.ts3j.util.Ts3Logging;
@@ -17,7 +17,7 @@ import java.nio.ByteOrder;
  *
  * Used simply to transcribe packets on the network
  */
-public class LocalTeamspeakSocket implements TeamspeakSocket {
+public class LocalTeamspeakSocket extends AbstractTeamspeakSocket implements TeamspeakSocket {
     private final SocketRole socketRole;
 
     private final DatagramSocket datagramSocket;
@@ -88,7 +88,20 @@ public class LocalTeamspeakSocket implements TeamspeakSocket {
 
         ByteBuffer outputBuffer = ByteBuffer.allocate(networkPacket.getSize());
         outputBuffer.order(ByteOrder.BIG_ENDIAN);
-        networkPacket.write(outputBuffer);
+        networkPacket.writeHeader(outputBuffer);
+
+        if (networkPacket.getHeader().getType().isEncrypted() &&
+                !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
+            ByteBuffer encryptionBuffer = ByteBuffer.allocate(500);
+            networkPacket.writeBody(encryptionBuffer);
+
+            byte[] unencryptedBody = new byte[encryptionBuffer.position()];
+            System.arraycopy(encryptionBuffer.array(), 0, unencryptedBody, 0, unencryptedBody.length);
+
+            outputBuffer.put(getPacketTransformation().encrypt(header, unencryptedBody));
+        } else {
+            networkPacket.writeBody(outputBuffer);
+        }
 
         Ts3Logging.debug("[PROTOCOL] WRITE " + packet.getType().name());
 
@@ -120,7 +133,17 @@ public class LocalTeamspeakSocket implements TeamspeakSocket {
         networkPacket.readHeader(buffer);
 
         Ts3Logging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
-        networkPacket.readBody(buffer);
+
+        if (networkPacket.getHeader().getType().isEncrypted()) {
+            byte[] transformBuffer = new byte[buffer.remaining()];
+            buffer.get(transformBuffer);
+
+            networkPacket.readBody(ByteBuffer.wrap(
+                    getPacketTransformation().decrypt(networkPacket.getHeader(), transformBuffer)
+            ));
+        } else {
+            networkPacket.readBody(buffer);
+        }
 
         return networkPacket;
     }

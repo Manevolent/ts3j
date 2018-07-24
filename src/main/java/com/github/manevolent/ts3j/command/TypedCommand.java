@@ -2,6 +2,8 @@ package com.github.manevolent.ts3j.command;
 
 import com.github.manevolent.ts3j.command.part.CommandParameter;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.client.TeamspeakClient;
+import com.github.manevolent.ts3j.protocol.server.TeamspeakServer;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -46,5 +48,13 @@ public abstract class TypedCommand implements Command {
     @Override
     public String toString() {
         return build();
+    }
+
+    public void handleServer(TeamspeakServer server) {
+
+    }
+
+    public void handleClient(TeamspeakClient client) {
+
     }
 }

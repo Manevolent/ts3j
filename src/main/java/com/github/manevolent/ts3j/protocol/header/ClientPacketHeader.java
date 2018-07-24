@@ -21,7 +21,7 @@ public class ClientPacketHeader extends PacketHeader {
     }
 
     @Override
-    protected void writeHeader(ByteBuffer buffer) {
+    protected ByteBuffer writeHeader(ByteBuffer buffer) {
         super.writeHeader(buffer);
 
         // https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
@@ -30,11 +30,13 @@ public class ClientPacketHeader extends PacketHeader {
         buffer.put((byte) ((getType().getIndex() & 0x0F) | (getPacketFlags() & 0xF0))); // PT / Packet Type + Flags
 
         // (payload) -- see writeBody impl in higher levels
+
+        return buffer;
     }
 
 
     @Override
-    protected void readHeader(ByteBuffer buffer) {
+    protected ByteBuffer readHeader(ByteBuffer buffer) {
         super.readHeader(buffer);
 
         // https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
@@ -46,6 +48,8 @@ public class ClientPacketHeader extends PacketHeader {
         setPacketFlags(packetTypeAndFlags & 0xF0);
 
         // (payload) -- see writeBody impl in higher levels
+
+        return buffer;
     }
 
     @Override

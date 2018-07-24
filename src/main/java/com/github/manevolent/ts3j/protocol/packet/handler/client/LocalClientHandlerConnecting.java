@@ -4,6 +4,7 @@ import com.github.manevolent.ts3j.command.type.client.ClientInitIV;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
+import com.github.manevolent.ts3j.protocol.packet.Packet2Command;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
@@ -24,6 +25,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
     @Override
     public void onAssigned() throws IOException {
         Packet8Init1 packet = new Packet8Init1(ProtocolRole.CLIENT);
+
+        // Initialize connection
 
         Packet8Init1.Step0 step = new Packet8Init1.Step0();
         Random random = new Random();
@@ -132,6 +135,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     throw new IllegalArgumentException("unexpected Init1 server step: " + init1.getStep().getNumber());
 
             }
+        } else if (packet.getPacket() instanceof Packet2Command) {
+
         }
     }
 }

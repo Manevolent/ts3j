@@ -30,7 +30,7 @@ public abstract class PacketHeader {
     public boolean getPacketFlag(HeaderFlag flag) {
         int idx = flag.getIndex();
 
-        return (packetFlags & idx) == idx;
+        return (getPacketFlags() & idx) == idx;
     }
 
     public void setPacketFlag(HeaderFlag flag, boolean value) {
@@ -69,24 +69,28 @@ public abstract class PacketHeader {
         this.mac = mac;
     }
 
-    public final void write(ByteBuffer buffer) {
-        writeHeader(buffer);
+    public final ByteBuffer write(ByteBuffer buffer) {
+        return writeHeader(buffer);
     }
 
-    public final void read(ByteBuffer buffer) {
-        readHeader(buffer);
+    public final ByteBuffer read(ByteBuffer buffer) {
+        return readHeader(buffer);
     }
 
-    protected void writeHeader(ByteBuffer buffer) {
+    protected ByteBuffer writeHeader(ByteBuffer buffer) {
         // https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
         buffer.put(getMac(), 0, 8);
         buffer.putShort((short) (getPacketId() & 0x0000FFFF)); // PiD / Packet ID
+
+        return buffer;
     }
 
-    protected void readHeader(ByteBuffer buffer) {
+    protected ByteBuffer readHeader(ByteBuffer buffer) {
         // https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
         buffer.get(mac);
         setPacketId((int) buffer.getShort() & 0x0000FFFF);
+
+        return buffer;
     }
 
     public int getSize() {

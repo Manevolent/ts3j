@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Map;
+import java.util.function.Function;
 
 public interface TeamspeakClient extends Endpoint {
     void connect(InetSocketAddress remote, String password, long timeout) throws IOException;

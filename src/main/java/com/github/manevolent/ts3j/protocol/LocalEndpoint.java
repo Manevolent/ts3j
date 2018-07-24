@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.protocol;
 
 import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
 import com.github.manevolent.ts3j.protocol.socket.LocalTeamspeakSocket;
 import com.github.manevolent.ts3j.util.Ts3Logging;
@@ -77,7 +78,11 @@ public abstract class LocalEndpoint implements Endpoint {
     }
 
     protected void handlePacket(NetworkPacket packet) throws IOException {
-        if (this.handler != null) this.handler.handlePacket(packet);
+        if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
+
+        } else {
+            if (this.handler != null) this.handler.handlePacket(packet);
+        }
     }
 
     public LocalIdentity getLocalIdentity() {

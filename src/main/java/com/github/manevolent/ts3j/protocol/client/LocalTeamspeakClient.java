@@ -18,6 +18,7 @@ import java.net.SocketException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
 public class LocalTeamspeakClient extends LocalEndpoint implements TeamspeakClient {
     private final Object connectionStateLock = new Object();
