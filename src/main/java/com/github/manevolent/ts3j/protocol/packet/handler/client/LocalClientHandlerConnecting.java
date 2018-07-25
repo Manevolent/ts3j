@@ -10,6 +10,7 @@ import com.github.manevolent.ts3j.protocol.packet.Packet2Command;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Logging;
+import javafx.util.Pair;
 import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;
@@ -165,21 +166,45 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                         null :
                         Base64.getDecoder().decode(command.get("tvd").getValue());
 
-                byte[] random = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
-                byte[] publicKeyBytes = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
+                byte[] beta = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
+                byte[] omega = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
                 byte[] proof = Base64.getDecoder().decode(command.get("proof").getValue()); // ecdh_sign(1)
+
+                Pair<byte[], byte[]> keyPair = Ts3Crypt.generateKeypair();
 
                 // 3.2.1.1 Verify integrity
                 // The proof parameter is the sign of the l parameter (not base64 encoded). The client can verify the l
                 // parameter with the public key of the server which is sent in omega.
 
-                ECPoint publicKey = Ts3Crypt.decodePublicKey(publicKeyBytes);
+                ECPoint publicKey = Ts3Crypt.decodePublicKey(omega);
 
                 if (!Ts3Crypt.verifySignature(publicKey, license, proof))
                     throw new SecurityException("invalid proof signature: " + Ts3Logging.getHex(proof));
 
-                // 3.2.2.2 Parsing the license
-                List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));
+                // generate proof for clientek
+                byte[] toSign = new byte[86];
+                System.arraycopy(keyPair.getKey(), 0, toSign, 0, 32);
+                System.arraycopy(beta, 0, toSign, 32, 54);
+                byte[] sign = getClient().getLocalIdentity().sign(toSign);
+
+                Ts3Logging.debug("Created proof (clientek): " + Ts3Logging.getHex(sign));
+
+                // Send clientek (telling them the shared secret)
+                Packet2Command clientek = new Packet2Command(ProtocolRole.CLIENT);
+                clientek.setText(
+                        new SimpleCommand(
+                                "clientek", ProtocolRole.CLIENT,
+                                new CommandSingleParameter("ek", Base64.getEncoder().encodeToString(keyPair.getKey())),
+                                new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(sign))
+                        ).build()
+                );
+                getClient().send(clientek);
+
+                Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue());
+
+                // send client init...
+
+                // DONE!
 
             }
         }

@@ -1,9 +1,16 @@
 package com.github.manevolent.ts3j.util;
 
+import Punisher.NaCl.Internal.Ed25519Ref10.GroupElementP2;
+import Punisher.NaCl.Internal.Ed25519Ref10.GroupElementP3;
+import Punisher.NaCl.Internal.Ed25519Ref10.GroupOperations;
+import Punisher.NaCl.Internal.Ed25519Ref10.ScalarOperations;
+import Punisher.NaCl.Internal.Sha512;
+import com.github.manevolent.ts3j.license.License;
+import javafx.util.Pair;
 import org.bouncycastle.asn1.*;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
+import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.params.ECPublicKeyParameters;
 import org.bouncycastle.crypto.signers.DSADigestSigner;
 import org.bouncycastle.crypto.signers.ECDSASigner;
@@ -14,12 +21,92 @@ import org.bouncycastle.math.ec.ECPoint;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 
 public final class Ts3Crypt {
+    public static Ts3Crypt.SecureChannelParameters cryptoInit2(byte[] license, byte[] alpha,
+                                                               byte[] omega, byte[] proof,
+                                                               byte[] beta, byte[] privateKey) {
+        // 3.2.2.2 Parsing the license
+        List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));
+
+        byte[] key = License.deriveKey(licenses);
+
+        Ts3Logging.debug("Computed license key: " + Ts3Logging.getHex(key));
+
+        byte[] sharedSecret = Ts3Crypt.generateSharedSecret2(key, privateKey);
+
+        Ts3Logging.debug("Computed shared secret: " + Ts3Logging.getHex(sharedSecret));
+
+        Ts3Crypt.SecureChannelParameters parameters =
+                Ts3Crypt.getSecureParameters(alpha, beta, sharedSecret);
+
+        Ts3Logging.debug("Computed fake fingerprint: " + Ts3Logging.getHex(parameters.getFakeSignature()));
+        Ts3Logging.debug("Computed IV struct: " + Ts3Logging.getHex(parameters.getIvStruct()));
+
+        return parameters;
+    }
+
+    private static void xor(byte[] a, int aoffs, byte[] b, int boffs, int len, byte[] outBuf, int outOffs)
+    {
+        if (a.length < len || b.length < len || outBuf.length < len)
+            throw new ArrayIndexOutOfBoundsException();
+
+        for (int i = 0; i < len; i++)
+            outBuf[i + outOffs] = (byte)(a[i + aoffs] ^ b[i + boffs]);
+    }
+
+    public static SecureChannelParameters getSecureParameters(byte[] alpha, byte[] beta, byte[] sharedKey) {
+        if (beta.length != 10 && beta.length != 54)
+            throw new IllegalArgumentException("invalid beta size (" + beta.length + ")");
+
+        byte[] fakeSignature = new byte[8];
+        byte[] ivStruct = new byte[10 + beta.length];
+
+        xor(sharedKey, 0, alpha, 0, alpha.length, ivStruct, 0);
+        xor(sharedKey, 10, beta, 0, beta.length, ivStruct, 10);
+
+        byte[] buffer;
+
+        try {
+           buffer = MessageDigest.getInstance("SHA1").digest(ivStruct);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+
+        System.arraycopy(buffer, 0, fakeSignature, 0, 8);
+
+        return new SecureChannelParameters(fakeSignature, ivStruct);
+    }
+
+    public static byte[] generateSharedSecret2(byte[] publicKey, byte[] privateKey) {
+        byte[] privateKeyCopy = new byte[32];
+        System.arraycopy(privateKey, 0, privateKeyCopy, 0, 32);
+
+        privateKeyCopy[31] &= 0x7F;
+
+        GroupElementP3 pub1 = new GroupElementP3();
+        GroupOperations.ge_frombytes_negate_vartime(pub1, publicKey, 0);
+
+        GroupElementP2 mul = new GroupElementP2();
+        GroupOperations.ge_scalarmult_vartime(mul, privateKeyCopy, pub1);
+
+        byte[] sharedTmp = new byte[32];
+        GroupOperations.ge_tobytes(sharedTmp, 0, mul);
+
+        sharedTmp[31] ^= 0x80;
+
+        try {
+            return Sha512.Hash(sharedTmp);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static ECDomainParameters getDomainParameters() {
         ECNamedCurveParameterSpec ecp = ECNamedCurveTable.getParameterSpec("prime256v1");
         return new ECDomainParameters(ecp.getCurve(), ecp.getG(), ecp.getN(), ecp.getH(), ecp.getSeed());
@@ -33,6 +120,16 @@ public final class Ts3Crypt {
         signer.update(data, 0, data.length);
 
         return signer.verifySignature(signature);
+    }
+
+    public static byte[] createSignature(BigInteger privateKey, byte[] data) {
+        DSADigestSigner signer = new DSADigestSigner(new ECDSASigner(), new SHA256Digest());
+        ECPrivateKeyParameters signingKey = new ECPrivateKeyParameters(privateKey, getDomainParameters());
+
+        signer.init(true, signingKey);
+        signer.update(data, 0, data.length);
+
+        return signer.generateSignature();
     }
 
     /**
@@ -77,6 +174,39 @@ public final class Ts3Crypt {
             return dataArray;
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static Pair<byte[], byte[]> generateKeypair() {
+        byte[] privateKey = new byte[32];
+        new SecureRandom().nextBytes(privateKey);
+
+        ScalarOperations.sc_clamp(privateKey, 0);
+
+        GroupElementP3 A = new GroupElementP3();
+        GroupOperations.ge_scalarmult_base(A, privateKey, 0);
+
+        byte[] publicKey = new byte[32];
+        GroupOperations.ge_p3_tobytes(publicKey, 0, A);
+
+        return new Pair<>(publicKey, privateKey);
+    }
+    
+    public static final class SecureChannelParameters {
+        private final byte[] fakeSignature;
+        private final byte[] ivStruct;
+
+        public SecureChannelParameters(byte[] fakeSignature, byte[] ivStruct) {
+            this.fakeSignature = fakeSignature;
+            this.ivStruct = ivStruct;
+        }
+
+        public byte[] getFakeSignature() {
+            return fakeSignature;
+        }
+
+        public byte[] getIvStruct() {
+            return ivStruct;
         }
     }
 }

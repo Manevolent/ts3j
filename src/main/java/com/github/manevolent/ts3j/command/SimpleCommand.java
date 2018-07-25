@@ -80,7 +80,6 @@ public class SimpleCommand implements Command {
             } else {
                 String[] commandParamParts = commandParamText.split("=", 2);
 
-                Ts3Logging.debug(commandParamText);
                 parameterList.add(new CommandSingleParameter(
                                 commandParamParts[0].toLowerCase(),
                                 commandParamParts.length > 1 ?

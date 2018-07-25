@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.license;
 
 import com.github.manevolent.ts3j.enums.LicenseType;
+import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.nio.ByteBuffer;
 
@@ -27,6 +28,7 @@ public class ServerLicenseUse extends LicenseUse {
     public ByteBuffer write(ByteBuffer buffer) {
         buffer.put(type);
         buffer.put(unknown);
+
         License.writeNullTerminatedLicenseString(buffer, issuer);
 
         return buffer;
@@ -36,6 +38,7 @@ public class ServerLicenseUse extends LicenseUse {
     public ByteBuffer read(ByteBuffer buffer) {
         type = buffer.get();
         buffer.get(unknown);
+
         issuer = License.readNullTerminatedLicenseString(buffer);
 
         return buffer;

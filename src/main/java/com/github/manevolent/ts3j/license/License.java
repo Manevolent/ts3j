@@ -1,7 +1,10 @@
 package com.github.manevolent.ts3j.license;
 
+import Punisher.NaCl.Internal.Ed25519Ref10.*;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.security.DigestException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -67,7 +70,7 @@ public class License {
     }
 
     public int getSize() {
-        return 32 + 1 + 8 + use.getSize();
+        return 1 + 32 + 1 + 8 + use.getSize();
     }
 
     public ByteBuffer write(ByteBuffer buffer) {
@@ -168,15 +171,60 @@ public class License {
             write(buffer);
 
             MessageDigest digest;
+
             try {
                 digest = MessageDigest.getInstance("SHA512");
             } catch (NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
 
-            return digest.digest(buffer.array());
+            digest.update(buffer.array(), 1, buffer.array().length - 1);
+            return digest.digest();
         }
 
         return computedHash;
+    }
+
+    public byte[] deriveKey(byte[] parent) {
+        // ScalarOperations.sc_clamp(Hash);
+        ScalarOperations.sc_clamp(getHash(), 0);
+
+        // GroupOperations.ge_frombytes_negate_vartime(out var pubkey, Key);
+        GroupElementP3 pubkey = new GroupElementP3();
+        GroupOperations.ge_frombytes_negate_vartime(pubkey, getPublicKey(), 0);
+
+        // GroupOperations.ge_frombytes_negate_vartime(out var parkey, parent);
+        GroupElementP3 parkey = new GroupElementP3();
+        GroupOperations.ge_frombytes_negate_vartime(parkey, parent, 0);
+
+        GroupElementP1P1 res = new GroupElementP1P1();
+        GroupOperations.ge_scalarmult_vartime(res, getHash(), pubkey);
+
+        GroupElementCached pargrp = new GroupElementCached();
+        GroupOperations.ge_p3_to_cached(pargrp, parkey);
+
+        GroupElementP3 r = new GroupElementP3();
+        GroupOperations.ge_p1p1_to_p3(r, res);
+
+        GroupElementP1P1 a = new GroupElementP1P1() ;
+        GroupOperations.ge_add(a, r, pargrp);
+
+        GroupElementP3 r2 = new GroupElementP3();
+        GroupOperations.ge_p1p1_to_p3(r2, a);
+
+        byte[] final_ = new byte[32];
+        GroupOperations.ge_p3_tobytes(final_, 0, r2);
+
+        final_[1] ^= 0x80;
+
+        return final_;
+    }
+
+    public static byte[] deriveKey(List<License> blocks) {
+        byte[] round = ROOT_KEY;
+
+        for (License block : blocks) round = block.deriveKey(round);
+
+        return round;
     }
 }

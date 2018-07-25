@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.identity;
 
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
 import org.bouncycastle.crypto.params.ECDomainParameters;
@@ -55,5 +56,9 @@ public class LocalIdentity extends Identity {
         localIdentity.improveSecurity(securityLevel);
 
         return localIdentity;
+    }
+
+    public byte[] sign(byte[] data) {
+        return Ts3Crypt.createSignature(privateKey, data);
     }
 }
