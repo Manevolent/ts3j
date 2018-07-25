@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.license.License;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
 import com.github.manevolent.ts3j.protocol.packet.Packet2Command;
 import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
@@ -200,12 +201,30 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 );
                 getClient().send(clientek);
 
-                Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue());
+                Ts3Crypt.SecureChannelParameters secureChannelParameters =
+                        Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue());
 
-                // send client init...
-
-                // DONE!
-
+                Packet2Command clientinit = new Packet2Command(ProtocolRole.CLIENT);
+                clientinit.setText(
+                        new SimpleCommand(
+                                "clientinit", ProtocolRole.CLIENT,
+                                new CommandSingleParameter("client_nickname", "test"),
+                                new CommandSingleParameter("client_version", "3.0.19.3"),
+                                new CommandSingleParameter("client_platform", "Windows"),
+                                new CommandSingleParameter("client_version_sign", "a1OYzvM18mrmfUQBUgxYBxYz2DUU6y5k3/mEL6FurzU0y97Bd1FL7+PRpcHyPkg4R+kKAFZ1nhyzbgkGphDWDg=="),
+                                new CommandSingleParameter("client_input_hardware", "true"),
+                                new CommandSingleParameter("client_output_hardware", "false"),
+                                new CommandSingleParameter("client_default_channel", ""),
+                                new CommandSingleParameter("client_default_channel_password", ""),
+                                new CommandSingleParameter("client_server_password", ""),
+                                new CommandSingleParameter("client_nickname_phonetic", "test"),
+                                new CommandSingleParameter("client_meta_data", ""),
+                                new CommandSingleParameter("client_default_token", ""),
+                                new CommandSingleParameter("client_key_offset", Long.toString(getClient().getLocalIdentity().getKeyOffset())),
+                                new CommandSingleParameter("hwid", "87056c6e1268aaf5055abf8256415e0e,408978b6d98810cc03f0aa16a4c75600")
+                        ).build()
+                );
+                getClient().send(clientinit);
             }
         }
     }

@@ -45,7 +45,7 @@ public class PacketTransformation {
 
         temporaryByteBuffer.put((byte) (header.getRole() == ProtocolRole.SERVER ? 0x30 : 0x31));
         temporaryByteBuffer.put((byte) (header.getType().getIndex() & 0xFF));
-        temporaryByteBuffer.put((byte) 0); // TODO generation
+        temporaryByteBuffer.put((byte) (header.getGeneration() & 0xFF));
 
         if (key.length == 20) {
             //temporary[6 - 26] = SIV[0 - 20]
@@ -76,7 +76,11 @@ public class PacketTransformation {
         Pair<byte[], byte[]> parameters = computeParameters(packet.getHeader());
 
         // Write header (this is temporary)
-        ByteBuffer headerBuffer = packet.writeHeader(ByteBuffer.allocate(packet.getHeader().getSize()));
+        ByteBuffer headerBuffer = packet.writeHeader(
+                ByteBuffer
+                .allocate(packet.getHeader().getSize())
+                .order(ByteOrder.BIG_ENDIAN)
+        );
 
         // Get the header without a MAC for the associated text field
         byte[] headerWithoutMac = new byte[packet.getHeader().getSize() - MAC_LEN];
@@ -90,7 +94,7 @@ public class PacketTransformation {
         );
 
         int dataLen = packet.getPacket().getSize();
-        ByteBuffer packetBuffer = packet.writeBody(ByteBuffer.allocate(dataLen));
+        ByteBuffer packetBuffer = packet.writeBody(ByteBuffer.allocate(dataLen).order(ByteOrder.BIG_ENDIAN));
 
         byte[] result;
         int len;
@@ -115,6 +119,8 @@ public class PacketTransformation {
 
         // Rest of header
         outputBuffer.put(headerWithoutMac);
+
+        Ts3Logging.debug("WRITE HEADER: " + Ts3Logging.getHex(outputBuffer.array(), headerBuffer.limit()));
 
         // Encrypted body
         outputBuffer.put(result, 0, len - MAC_LEN);

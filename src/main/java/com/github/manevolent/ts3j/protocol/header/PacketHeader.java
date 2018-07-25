@@ -10,6 +10,7 @@ public abstract class PacketHeader {
     private final ProtocolRole role;
 
     //private final byte[] DEFAULT_MAC = new byte[] {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0}; // 8x0's
+    private int packetGeneration;
     private byte[] mac = new byte[8]; // 8 bytes
     private int packetId = 0;
     private PacketType type;
@@ -99,5 +100,13 @@ public abstract class PacketHeader {
 
     public ProtocolRole getRole() {
         return role;
+    }
+
+    public int getGeneration() {
+        return packetGeneration;
+    }
+
+    public void setGeneration(int packetGeneration) {
+        this.packetGeneration = packetGeneration;
     }
 }

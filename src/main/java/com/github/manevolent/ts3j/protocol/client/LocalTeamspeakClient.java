@@ -7,12 +7,15 @@ import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
+import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.packet.Packet6Ack;
 import com.github.manevolent.ts3j.protocol.packet.PacketType;
 import com.github.manevolent.ts3j.protocol.packet.channel.PacketChannel;
 import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandler;
+import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.protocol.socket.LocalTeamspeakSocket;
 import com.github.manevolent.ts3j.protocol.packet.Packet;
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.io.IOException;
@@ -72,6 +75,10 @@ public class LocalTeamspeakClient extends LocalEndpoint implements TeamspeakClie
         return clientOptions;
     }
 
+    public void setSecureParameters(Ts3Crypt.SecureChannelParameters parameters) {
+        getSocket().setPacketTransformation(new PacketTransformation(parameters.getIvStruct()));
+    }
+
     /**
      * Sends a command to the remote server.
      * @param command Command to send.
@@ -108,6 +115,7 @@ public class LocalTeamspeakClient extends LocalEndpoint implements TeamspeakClie
      * @param packet Packet to send
      * @throws IOException
      */
+    int z = 0;
     public void send(Packet packet) throws IOException {
         // Construct header
         ClientPacketHeader header = new ClientPacketHeader();
@@ -117,10 +125,15 @@ public class LocalTeamspeakClient extends LocalEndpoint implements TeamspeakClie
 
         packet.setHeaderValues(header);
 
+        if (connectionState == ClientConnectionState.CONNECTING) {
+            header.setPacketId(z++);
+            header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+        }
+
         getSocket().send(header, packet);
     }
 
-    private void setConnectionState(ClientConnectionState state) {
+    public void setConnectionState(ClientConnectionState state) {
         synchronized (connectionStateLock) {
             if (state != this.connectionState) {
                 Ts3Logging.debug("State changing: " + state.name());
