@@ -36,6 +36,8 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
     protected NetworkPacket readNetworkPacket() throws IOException {
         socket.receive(packet);
 
+        Ts3Logging.debug("[NETWORK] READ len=" + packet.getLength() + " from " + packet.getSocketAddress());
+
         PacketHeader header;
 
         try {
@@ -59,6 +61,11 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
 
     @Override
     protected void writeNetworkPacket(NetworkPacket packet) throws IOException {
+        Ts3Logging.debug("[NETWORK] WRITE id=" + packet.getHeader().getPacketId() + " len=" +
+                packet.getDatagram().getLength()
+                + " to " +
+                socket.getRemoteSocketAddress());
+
         socket.send(packet.getDatagram());
     }
 
@@ -89,16 +96,21 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
             if (connectionState != ClientConnectionState.DISCONNECTED)
                 throw new IllegalStateException(connectionState.name());
 
+            setClientId(0);
+            setPacketId(0);
+            setGenerationId(0);
+
             setOption("client.hostname", remote.getHostString());
             setOption("client.password", password);
 
             socket.connect(remote);
 
-            Ts3Logging.debug("Changing state...");
             setState(ClientConnectionState.CONNECTING);
 
             waitForState(ClientConnectionState.CONNECTED, timeout);
         } catch (TimeoutException e) {
+            setState(ClientConnectionState.DISCONNECTED);
+
             throw e;
         } catch (Throwable e) {
             setState(ClientConnectionState.DISCONNECTED);

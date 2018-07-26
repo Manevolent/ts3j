@@ -7,6 +7,7 @@ import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
+import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody;
@@ -26,22 +27,31 @@ import java.net.DatagramPacket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 
 public abstract class AbstractTeamspeakClientSocket
         extends AbstractTeamspeakSocket
         implements TeamspeakClientSocket {
     private final Object connectionStateLock = new Object();
-    private final Map<PacketBodyType, ReassemblyQueue> reassemblyQueue = new LinkedHashMap<>();
-    private final NetworkReader networkReader = new NetworkReader();
+    private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
+    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new LinkedHashMap<>();
     private final Map<String, Object> clientOptions = new LinkedHashMap<>();
+    private final Map<Integer, PacketResponse> sendQueue = new LinkedHashMap<>();
 
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
     private PacketTransformation transformation = new DefaultPacketTransformation();
     private PacketHandler handler;
 
+    private int generationId = 0;
+    private int clientId = 0;
+    private int packetId = 0;
+
+    private final NetworkReader networkReader = new NetworkReader();
+    private final NetworkHandler networkHandler = new NetworkHandler();
     private Thread networkThread = null;
+    private Thread handlerThread = null;
+
     private boolean reading = false;
 
     protected AbstractTeamspeakClientSocket() {
@@ -56,13 +66,17 @@ public abstract class AbstractTeamspeakClientSocket
         // Initialize reassembly queue
         for (PacketBodyType bodyType : PacketBodyType.values())
             if (bodyType.isSplittable())
-                reassemblyQueue.put(bodyType, new ReassemblyQueue());
+                reassemblyQueue.put(bodyType, new Reassembly());
     }
 
     protected void start() {
         Thread networkThread = new Thread(networkReader);
         networkThread.setDaemon(true);
         networkThread.start();
+
+        Thread handlerThread = new Thread(networkHandler);
+        handlerThread.setDaemon(true);
+        handlerThread.start();
     }
 
     @Override
@@ -89,26 +103,28 @@ public abstract class AbstractTeamspeakClientSocket
 
                 this.connectionState = state;
 
-                if (this.connectionState == ClientConnectionState.DISCONNECTED) setReading(false);
-
-                PacketHandler handler = getHandler();
-
-                if (handler != null)
-                    ((LocalClientHandler) handler).handleConnectionStateChanging(state);
-
-                if (handler == null || handler.getClass() != state.getHandlerClass()) {
-                    Ts3Logging.debug("Assigning " + state.getHandlerClass().getName() + " handler...");
-
-                    setHandler(state.createHandler(this));
-                }
-
-                if (this.connectionState == ClientConnectionState.DISCONNECTED)
-                    clientOptions.clear();
+                if (state == ClientConnectionState.DISCONNECTED) setReading(false);
 
                 connectionStateLock.notifyAll();
 
+                if (state == ClientConnectionState.DISCONNECTED)
+                    clientOptions.clear();
+
                 Ts3Logging.debug("State changed: " + state.name());
             }
+        }
+
+        PacketHandler handler = getHandler();
+
+        if (handler != null)
+            ((LocalClientHandler) handler).handleConnectionStateChanging(state);
+
+        if (handler == null || handler.getClass() != state.getHandlerClass()) {
+            Ts3Logging.debug("Assigning " + state.getHandlerClass().getName() + " handler...");
+
+            setHandler(state.createHandler(this));
+
+            Ts3Logging.debug("Assigned " + state.getHandlerClass().getName() + " handler.");
         }
     }
 
@@ -147,7 +163,6 @@ public abstract class AbstractTeamspeakClientSocket
         CommandResponse response;
 
         if (command.willExpectResponse()) {
-
             //command.appendParameter(new CommandSingleParameter("return_code", returnCodeIndex));
             response = new CommandResponse(command, 0); // TODO
         } else {
@@ -189,7 +204,7 @@ public abstract class AbstractTeamspeakClientSocket
                     getRole().getOut().name());
 
         // Ensure type matches
-        packet.getHeader().setType(packet.getHeader().getType());
+        packet.getHeader().setType(packet.getBody().getType());
 
         // Make sure new protocol is set if it must be set
         if (getState() == ClientConnectionState.CONNECTING)
@@ -198,6 +213,62 @@ public abstract class AbstractTeamspeakClientSocket
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
+        if (!packet.getHeader().getPacketFlag(HeaderFlag.NEW_PROTOCOL)) {
+            packetId++;
+            packetId = packetId & 0x0000FFFF;
+
+            if (packetId == 0) generationId++;
+
+            if (packet.getHeader() instanceof ClientPacketHeader)
+                ((ClientPacketHeader) packet.getHeader()).setClientId(clientId);
+
+            packet.getHeader().setGeneration(generationId);
+            packet.getHeader().setPacketId(packetId);
+        }
+
+        if (packet.getSize() > 500) {
+            if (!packet.getHeader().getType().isSplittable())
+                throw new IllegalArgumentException("packet too large: " + packet.getSize());
+
+            // Split
+            int totalSize = packet.getBody().getSize();
+
+            ByteBuffer outputBuffer = ByteBuffer.allocate(totalSize);
+            packet.getBody().write(outputBuffer);
+
+            for (int offs = 0; offs < totalSize;) {
+                int flush = Math.min(500 - packet.getHeader().getSize(), totalSize - offs);
+                boolean first = offs == 0;
+                boolean last = flush < 500;
+
+                Packet piece = new Packet(packet.getRole());
+                piece.setHeader(packet.getHeader());
+
+                if (!first) // Only first packet has flags
+                    piece.getHeader().setPacketFlags(HeaderFlag.NONE.getIndex());
+
+                // First and last packet get FRAGMENTED flag
+                piece.getHeader().setPacketFlag(HeaderFlag.FRAGMENTED, first || last);
+
+                byte[] pieceBytes = new byte[flush];
+                System.arraycopy(outputBuffer.array(), offs, pieceBytes, 0, flush);
+
+                piece.setBody(new PacketBodyFragment(
+                        packet.getHeader().getType(),
+                        packet.getHeader().getRole(),
+                        pieceBytes
+                ));
+
+                writePacketIntl(piece);
+
+                offs += flush;
+            }
+        } else {
+            writePacketIntl(packet);
+        }
+    }
+
+    private void writePacketIntl(Packet packet) throws IOException, TimeoutException {
         // Flush to a buffer
         ByteBuffer outputBuffer;
 
@@ -212,19 +283,53 @@ public abstract class AbstractTeamspeakClientSocket
             packet.writeBody(outputBuffer);
         }
 
-        Ts3Logging.debug("[PROTOCOL] WRITE " + packet.getHeader().getType().name());
-
-        // Find if the packet must be acknowledged and create a promise for that action
-        // TODO
-
-        writeNetworkPacket(new NetworkPacket(
+        NetworkPacket networkPacket = new NetworkPacket(
                 new DatagramPacket(outputBuffer.array(), outputBuffer.position()),
                 packet.getHeader(),
                 (ByteBuffer) outputBuffer.position(0)
-        ));
+        );
+
+        // Find if the packet must be acknowledged and create a promise for that action
+        boolean willAcknowledge = packet.getHeader().getType().getAcknolwedgedBy() != null;
+        PacketResponse response;
+
+        if (willAcknowledge)
+            sendQueue.put(
+                    packet.getHeader().getPacketId(),
+                    response = new PacketResponse(
+                            networkPacket,
+                            Integer.MAX_VALUE
+                    )
+            );
+        else
+            response = null;
+
+        Ts3Logging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
+        writeNetworkPacket(networkPacket);
 
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
-        // TODO
+        if (response != null) {
+            while (response.getRetries() < response.getMaxTries()) {
+                try {
+                    if (getState() == ClientConnectionState.DISCONNECTED)
+                        throw new IllegalStateException("no longer connected");
+
+                    response.getFuture().get(1000L, TimeUnit.MILLISECONDS);
+                    break;
+                } catch (TimeoutException e) {
+                    response.resend();
+                } catch (CancellationException e) {
+                    throw e;
+                } catch (InterruptedException e) {
+
+                } catch (ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            if (response.getRetries() >= response.getMaxTries())
+                throw new TimeoutException("send");
+        }
     }
 
     private Packet readPacketIntl() throws IOException {
@@ -290,7 +395,7 @@ public abstract class AbstractTeamspeakClientSocket
 
     @Override
     public Packet readPacket() throws IOException, TimeoutException {
-        while (true) {
+        while (isReading()) {
             Packet packet = readPacketIntl();
 
             // Find if the packet must be acknowledged
@@ -306,13 +411,18 @@ public abstract class AbstractTeamspeakClientSocket
             // Find if the packet is itself an acknowledgement
             switch (packet.getHeader().getType()) {
                 case ACK:
+                    int packetId = packet.getHeader().getPacketId();
+                    PacketResponse response = sendQueue.get(packetId);
+                    if (response != null) response.getFuture().complete(packet);
                     break;
                 case ACK_LOW:
                     break;
                 default:
-                    getHandler().handlePacket(packet);
+                    return packet;
             }
         }
+
+        throw new IllegalStateException("no longer reading");
     }
 
     @Override
@@ -356,18 +466,47 @@ public abstract class AbstractTeamspeakClientSocket
 
             if (!reading) {
                 if (networkThread != null) networkThread.interrupt();
+                if (handlerThread != null) handlerThread.interrupt();
             } else {
                 start();
             }
         }
     }
 
-    private class NetworkReader implements Runnable {
+    public int getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(int clientId) {
+        this.clientId = clientId;
+    }
+
+    public int getPacketId() {
+        return packetId;
+    }
+
+    public void setPacketId(int packetId) {
+        this.packetId = packetId;
+    }
+
+    public int getGenerationId() {
+        return generationId;
+    }
+
+    public void setGenerationId(int generationId) {
+        this.generationId = generationId;
+    }
+
+    private class NetworkHandler implements Runnable {
         @Override
         public void run() {
             while (isReading()) {
                 try {
-                    readPacket();
+                    Packet packet = readQueue.take();
+
+                    Ts3Logging.debug("Processing " + packet + "...");
+                    getHandler().handlePacket(packet);
+                    Ts3Logging.debug("Processed " + packet + ".");
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) continue;
 
@@ -377,7 +516,71 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
-    private class ReassemblyQueue {
+    private class NetworkReader implements Runnable {
+        @Override
+        public void run() {
+            while (isReading()) {
+                try {
+                    readQueue.put(readPacket());
+                } catch (Exception e) {
+                    if (e instanceof InterruptedException) continue;
+
+                    Ts3Logging.debug("Problem reading packet", e);
+                }
+            }
+        }
+    }
+
+    private class PacketResponse {
+        private final NetworkPacket sentPacket;
+        private final CompletableFuture future = new CompletableFuture<>();
+        private long lastSent = 0L;
+        private int tries, maxTries;
+        private boolean willResend;
+
+        public PacketResponse(NetworkPacket sentPacket,int maxTries) {
+            this.sentPacket = sentPacket;
+            this.maxTries = maxTries;
+            this.lastSent = System.currentTimeMillis();
+            this.willResend = maxTries > 0;
+        }
+
+        public NetworkPacket getPacket() {
+            return sentPacket;
+        }
+
+        public void resend() throws IOException {
+            AbstractTeamspeakClientSocket.this.writeNetworkPacket(sentPacket);
+
+            tries ++;
+        }
+
+        public boolean isWillResend() {
+            return willResend;
+        }
+
+        public int getMaxTries() {
+            return maxTries;
+        }
+
+        public int getRetries() {
+            return tries;
+        }
+
+        public long getLastSent() {
+            return lastSent;
+        }
+
+        public CompletableFuture getFuture() {
+            return future;
+        }
+
+        public void setLastSent(long lastSent) {
+            this.lastSent = lastSent;
+        }
+    }
+
+    private class Reassembly {
         private final Map<Integer, Packet> queue = new LinkedHashMap<>();
         private boolean state = false;
 

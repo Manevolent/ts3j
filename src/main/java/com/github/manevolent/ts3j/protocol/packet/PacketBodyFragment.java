@@ -11,6 +11,12 @@ public class PacketBodyFragment extends PacketBody {
         super(type, role);
     }
 
+    public PacketBodyFragment(PacketBodyType type, ProtocolRole role, byte[] body) {
+        super(type, role);
+
+        this.raw = body;
+    }
+
     public byte[] getRaw() {
         return raw;
     }
