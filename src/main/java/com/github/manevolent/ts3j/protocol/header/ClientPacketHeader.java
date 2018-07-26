@@ -1,6 +1,6 @@
 package com.github.manevolent.ts3j.protocol.header;
 
-import com.github.manevolent.ts3j.protocol.packet.PacketType;
+import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
 import java.nio.ByteBuffer;
@@ -44,7 +44,7 @@ public class ClientPacketHeader extends PacketHeader {
         setClientId((buffer.getShort() & 0xFFFF));
 
         byte packetTypeAndFlags = buffer.get();
-        setType(PacketType.fromId((packetTypeAndFlags & 0x0F))); // PT / Packet Type + Flags
+        setType(PacketBodyType.fromId((packetTypeAndFlags & 0x0F))); // PT / Packet Type + Flags
         setPacketFlags(packetTypeAndFlags & 0xF0);
 
         // (payload) -- see writeBody impl in higher levels

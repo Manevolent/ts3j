@@ -7,9 +7,9 @@ import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import static com.github.manevolent.ts3j.protocol.packet.PacketType.INIT1;
+import static com.github.manevolent.ts3j.protocol.packet.PacketBodyType.INIT1;
 
-public class Packet8Init1 extends Packet {
+public class PacketBody8Init1 extends PacketBody {
     private static final byte[] LOW_LEVEL_MAC  = new byte[] {
             0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31
     };
@@ -17,7 +17,7 @@ public class Packet8Init1 extends Packet {
     private byte[] version = new byte[4]; // 4 bytes
     private Step step; // step instance
 
-    public Packet8Init1(ProtocolRole role) {
+    public PacketBody8Init1(ProtocolRole role) {
         // sec. 2 of https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
         // (The packet header values are set as following for all packets here:)
         super(INIT1, role);
@@ -152,7 +152,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setTimestamp(byte[] timestamp) {
-            Packet.assertArray("timestamp", timestamp, 4);
+            PacketBody.assertArray("timestamp", timestamp, 4);
             this.timestamp = timestamp;
         }
 
@@ -161,7 +161,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setRandom(byte[] random) {
-            Packet.assertArray("random", random, 4);
+            PacketBody.assertArray("random", random, 4);
             this.random = random;
         }
 
@@ -199,7 +199,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setA0reversed(byte[] a0reversed) {
-            Packet.assertArray("a0reversed", a0reversed, 4);
+            PacketBody.assertArray("a0reversed", a0reversed, 4);
             this.a0reversed = a0reversed;
         }
 
@@ -208,7 +208,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setServerStuff(byte[] serverStuff) {
-            Packet.assertArray("serverStuff", serverStuff, 16);
+            PacketBody.assertArray("serverStuff", serverStuff, 16);
             this.serverStuff = serverStuff;
         }
 
@@ -244,7 +244,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setA0reversed(byte[] a0reversed) {
-            Packet.assertArray("a0reversed", a0reversed, 4);
+            PacketBody.assertArray("a0reversed", a0reversed, 4);
             this.a0reversed = a0reversed;
         }
 
@@ -253,7 +253,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setServerStuff(byte[] serverStuff) {
-            Packet.assertArray("serverStuff", serverStuff, 16);
+            PacketBody.assertArray("serverStuff", serverStuff, 16);
             this.serverStuff = serverStuff;
         }
 
@@ -290,7 +290,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setX(byte[] x) {
-            Packet.assertArray("x", x, 64);
+            PacketBody.assertArray("x", x, 64);
             this.x = x;
         }
 
@@ -299,7 +299,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setN(byte[] n) {
-            Packet.assertArray("n", n, 64);
+            PacketBody.assertArray("n", n, 64);
             this.n = n;
         }
 
@@ -308,7 +308,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setServerStuff(byte[] serverStuff) {
-            Packet.assertArray("serverStuff", serverStuff, 100);
+            PacketBody.assertArray("serverStuff", serverStuff, 100);
             this.serverStuff = serverStuff;
         }
 
@@ -359,7 +359,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setX(byte[] x) {
-            Packet.assertArray("x", x, 64);
+            PacketBody.assertArray("x", x, 64);
             this.x = x;
         }
 
@@ -368,7 +368,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setN(byte[] n) {
-            Packet.assertArray("n", n, 64);
+            PacketBody.assertArray("n", n, 64);
             this.n = n;
         }
 
@@ -377,7 +377,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setServerStuff(byte[] serverStuff) {
-            Packet.assertArray("serverStuff", serverStuff, 100);
+            PacketBody.assertArray("serverStuff", serverStuff, 100);
             this.serverStuff = serverStuff;
         }
 
@@ -394,7 +394,7 @@ public class Packet8Init1 extends Packet {
         }
 
         public void setY(byte[] y) {
-            Packet.assertArray("y", y, 64);
+            PacketBody.assertArray("y", y, 64);
             this.y = y;
         }
 

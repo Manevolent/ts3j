@@ -1,8 +1,7 @@
 package com.github.manevolent.ts3j.protocol.header;
 
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.protocol.packet.PacketType;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
 
 import java.nio.ByteBuffer;
 
@@ -40,7 +39,7 @@ public class ServerPacketHeader extends PacketHeader {
 
         // https://github.com/ReSpeak/tsdeclarations/blob/master/ts3protocol.md
         byte packetTypeAndFlags = buffer.get();
-        setType(PacketType.fromId((packetTypeAndFlags & 0x0F))); // PT / Packet Type + Flags
+        setType(PacketBodyType.fromId((packetTypeAndFlags & 0x0F))); // PT / Packet Type + Flags
         setPacketFlags(packetTypeAndFlags & 0xF0);
         // (payload) -- see writeBody impl in higher levels
 

@@ -1,18 +1,15 @@
 package com.github.manevolent.ts3j.protocol.socket;
 
-import com.github.manevolent.ts3j.protocol.packet.transformation.DefaultPacketTransformation;
-import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
+import com.github.manevolent.ts3j.protocol.SocketRole;
 
 public abstract class AbstractTeamspeakSocket implements TeamspeakSocket {
-    private PacketTransformation transformation = new DefaultPacketTransformation();
+    private final SocketRole role;
 
-    @Override
-    public PacketTransformation getPacketTransformation() {
-        return transformation;
+    protected AbstractTeamspeakSocket(SocketRole role) {
+        this.role = role;
     }
 
-    @Override
-    public void setPacketTransformation(PacketTransformation transformation) {
-        this.transformation = transformation;
+    public SocketRole getRole() {
+        return role;
     }
 }

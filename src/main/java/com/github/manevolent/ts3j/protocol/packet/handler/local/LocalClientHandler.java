@@ -1,16 +1,14 @@
-package com.github.manevolent.ts3j.protocol.packet.handler.client;
+package com.github.manevolent.ts3j.protocol.packet.handler.local;
 
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 
-import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
-
-import java.io.IOException;
+import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 
 public abstract class LocalClientHandler extends PacketHandler {
-    private final LocalTeamspeakClient client;
+    private final LocalTeamspeakClientSocket client;
 
-    protected LocalClientHandler(LocalTeamspeakClient client) {
+    protected LocalClientHandler(LocalTeamspeakClientSocket client) {
         super(client);
 
         this.client = client;
@@ -20,7 +18,7 @@ public abstract class LocalClientHandler extends PacketHandler {
 
     }
 
-    protected LocalTeamspeakClient getClient() {
+    public LocalTeamspeakClientSocket getClient() {
         return client;
     }
 }

@@ -1,14 +1,12 @@
-package com.github.manevolent.ts3j.protocol.packet.handler.client;
+package com.github.manevolent.ts3j.protocol.packet.handler.local;
 
 import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
-import com.github.manevolent.ts3j.license.License;
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
-import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
-import com.github.manevolent.ts3j.protocol.packet.Packet2Command;
-import com.github.manevolent.ts3j.protocol.packet.Packet8Init1;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody8Init1;
+import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Logging;
 import javafx.util.Pair;
@@ -16,27 +14,26 @@ import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Base64;
-import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeoutException;
 
 public class LocalClientHandlerConnecting extends LocalClientHandler {
     private byte[] randomBytes;
     private byte[] alphaBytes;
 
-    public LocalClientHandlerConnecting(LocalTeamspeakClient client) {
+    public LocalClientHandlerConnecting(LocalTeamspeakClientSocket client) {
         super(client);
     }
 
     @Override
-    public void onAssigned() throws IOException {
-        Packet8Init1 packet = new Packet8Init1(ProtocolRole.CLIENT);
+    public void onAssigned() throws IOException, TimeoutException {
+        PacketBody8Init1 packet = new PacketBody8Init1(ProtocolRole.CLIENT);
 
         // Initialize connection
 
-        Packet8Init1.Step0 step = new Packet8Init1.Step0();
+        PacketBody8Init1.Step0 step = new PacketBody8Init1.Step0();
         Random random = new Random();
         randomBytes = new byte[4];
         random.nextBytes(randomBytes);
@@ -47,7 +44,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         sendInit1(packet);
     }
 
-    private void sendInit1(Packet8Init1 packet) throws IOException {
+    private void sendInit1(PacketBody8Init1 packet) throws IOException, TimeoutException {
         Ts3Logging.debug("Connecting: sending " + packet.getClass().getSimpleName()
                 + ":"
                 + packet.getStep().getClass().getSimpleName() + "..."
@@ -55,19 +52,19 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
         packet.setVersion(new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF });
 
-        getClient().send(packet);
+        getClient().writePacket(packet);
     }
 
     @Override
-    public void handlePacket(NetworkPacket packet) throws IOException {
-        Ts3Logging.debug("Connecting: handling " + packet.getPacket().getClass().getSimpleName());
+    public void handlePacket(Packet packet) throws IOException, TimeoutException {
+        Ts3Logging.debug("Connecting: handling " + packet.getBody().getClass().getSimpleName());
 
-        if (packet.getPacket() instanceof Packet8Init1) {
-            Packet8Init1 init1 = (Packet8Init1) packet.getPacket();
+        if (packet.getBody() instanceof PacketBody8Init1) {
+            PacketBody8Init1 init1 = (PacketBody8Init1) packet.getBody();
 
             switch (init1.getStep().getNumber()) {
                 case 1:
-                    Packet8Init1.Step1 serverReplyStep1 = (Packet8Init1.Step1)init1.getStep();
+                    PacketBody8Init1.Step1 serverReplyStep1 = (PacketBody8Init1.Step1)init1.getStep();
                     // Check nonce.  It's received backwards, so walk backwards over the array received
                     for (int i = 0; i < 4; i ++) {
                         if (randomBytes[3 - i] != serverReplyStep1.getA0reversed()[i])
@@ -75,9 +72,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     }
 
                     // Build response
-                    Packet8Init1 response2 = new Packet8Init1(ProtocolRole.CLIENT);
+                    PacketBody8Init1 response2 = new PacketBody8Init1(ProtocolRole.CLIENT);
 
-                    Packet8Init1.Step2 step2 = new Packet8Init1.Step2();
+                    PacketBody8Init1.Step2 step2 = new PacketBody8Init1.Step2();
                     step2.setA0reversed(serverReplyStep1.getA0reversed());
                     step2.setServerStuff(serverReplyStep1.getServerStuff());
                     response2.setStep(step2);
@@ -85,7 +82,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     sendInit1(response2);
                     break;
                 case 3:
-                    Packet8Init1.Step3 serverReplyStep3 = (Packet8Init1.Step3)init1.getStep();
+                    PacketBody8Init1.Step3 serverReplyStep3 = (PacketBody8Init1.Step3)init1.getStep();
 
                     // Calculate 'y'
                     // which is the result of x ^ (2 ^ level) % n as an unsigned
@@ -113,9 +110,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     );
 
                     // Build response
-                    Packet8Init1 response4 = new Packet8Init1(ProtocolRole.CLIENT);
+                    PacketBody8Init1 response4 = new PacketBody8Init1(ProtocolRole.CLIENT);
 
-                    Packet8Init1.Step4 step4 = new Packet8Init1.Step4();
+                    PacketBody8Init1.Step4 step4 = new PacketBody8Init1.Step4();
 
                     step4.setLevel(serverReplyStep3.getLevel());
                     step4.setX(serverReplyStep3.getX());
@@ -130,7 +127,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                     initiv.add(new CommandSingleParameter("alpha", Base64.getEncoder().encodeToString(alphaBytes)));
 
-                    initiv.add(new CommandSingleParameter("omega", getClient().getLocalIdentity().getPublicKeyString()));
+                    initiv.add(new CommandSingleParameter("omega", getClient().getIdentity().getPublicKeyString()));
 
                     initiv.add(new CommandSingleParameter("ot", "1")); // constant, set to 1
 
@@ -151,8 +148,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     throw new IllegalArgumentException("unexpected Init1 server step: " + init1.getStep().getNumber());
 
             }
-        } else if (packet.getPacket() instanceof Packet2Command) {
-            SimpleCommand command = ((Packet2Command) packet.getPacket()).parse();
+        } else if (packet.getBody() instanceof PacketBody2Command) {
+            SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse();
 
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
@@ -186,12 +183,12 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 byte[] toSign = new byte[86];
                 System.arraycopy(keyPair.getKey(), 0, toSign, 0, 32);
                 System.arraycopy(beta, 0, toSign, 32, 54);
-                byte[] sign = getClient().getLocalIdentity().sign(toSign);
+                byte[] sign = getClient().getIdentity().sign(toSign);
 
                 Ts3Logging.debug("Created proof (clientek): " + Ts3Logging.getHex(sign));
 
                 // Send clientek (telling them the shared secret)
-                Packet2Command clientek = new Packet2Command(ProtocolRole.CLIENT);
+                PacketBody2Command clientek = new PacketBody2Command(ProtocolRole.CLIENT);
                 clientek.setText(
                         new SimpleCommand(
                                 "clientek", ProtocolRole.CLIENT,
@@ -199,12 +196,14 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                                 new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(sign))
                         ).build()
                 );
-                getClient().send(clientek);
+                getClient().writePacket(clientek);
 
-                Ts3Crypt.SecureChannelParameters secureChannelParameters =
-                        Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue());
+                getClient().setSecureParameters(
+                        Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue())
+                );
 
-                Packet2Command clientinit = new Packet2Command(ProtocolRole.CLIENT);
+                PacketBody2Command clientinit = new PacketBody2Command(ProtocolRole.CLIENT);
+
                 clientinit.setText(
                         new SimpleCommand(
                                 "clientinit", ProtocolRole.CLIENT,
@@ -220,11 +219,12 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                                 new CommandSingleParameter("client_nickname_phonetic", "test"),
                                 new CommandSingleParameter("client_meta_data", ""),
                                 new CommandSingleParameter("client_default_token", ""),
-                                new CommandSingleParameter("client_key_offset", Long.toString(getClient().getLocalIdentity().getKeyOffset())),
+                                new CommandSingleParameter("client_key_offset", Long.toString(getClient().getIdentity().getKeyOffset())),
                                 new CommandSingleParameter("hwid", "87056c6e1268aaf5055abf8256415e0e,408978b6d98810cc03f0aa16a4c75600")
                         ).build()
                 );
-                getClient().send(clientinit);
+
+                getClient().writePacket(clientinit);
             }
         }
     }

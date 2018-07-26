@@ -3,13 +3,18 @@ package com.github.manevolent.ts3j.protocol.packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 
-public class Packet6Ack extends Packet {
+public class PacketBody6Ack extends PacketBody {
     private int packetId;
 
-    public Packet6Ack(ProtocolRole role) {
-        super(PacketType.ACK, role);
+    public PacketBody6Ack(ProtocolRole role) {
+        super(PacketBodyType.ACK, role);
+    }
+
+    public PacketBody6Ack(ProtocolRole role, int packetId) {
+        super(PacketBodyType.ACK, role);
+
+        setPacketId(packetId);
     }
 
     public int getPacketId() {

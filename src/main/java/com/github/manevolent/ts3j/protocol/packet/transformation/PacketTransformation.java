@@ -1,6 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet.transformation;
 
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.util.Ts3Logging;
@@ -72,7 +72,7 @@ public class PacketTransformation {
         return new Pair<>(key, nonce);
     }
 
-    public ByteBuffer encrypt(NetworkPacket packet) {
+    public ByteBuffer encrypt(Packet packet) {
         Pair<byte[], byte[]> parameters = computeParameters(packet.getHeader());
 
         // Write header (this is temporary)
@@ -93,7 +93,7 @@ public class PacketTransformation {
                 headerWithoutMac
         );
 
-        int dataLen = packet.getPacket().getSize();
+        int dataLen = packet.getBody().getSize();
         ByteBuffer packetBuffer = packet.writeBody(ByteBuffer.allocate(dataLen).order(ByteOrder.BIG_ENDIAN));
 
         byte[] result;

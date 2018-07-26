@@ -2,7 +2,7 @@ package com.github.manevolent.ts3j;
 
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
-import com.github.manevolent.ts3j.protocol.client.LocalTeamspeakClient;
+import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import junit.framework.TestCase;
 
 import java.net.InetSocketAddress;
@@ -16,9 +16,9 @@ public class ServerConnectionTest extends TestCase {
         try {
             LocalIdentity localIdentity = LocalIdentity.generateNew(8);
 
-            LocalTeamspeakClient client = new LocalTeamspeakClient();
+            LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
 
-            client.setLocalIdentity(localIdentity);
+            client.setIdentity(localIdentity);
 
             client.connect(new InetSocketAddress(
                             "ts.teamlixo.net",
@@ -27,7 +27,7 @@ public class ServerConnectionTest extends TestCase {
                     10000L
             );
 
-            assertEquals(client.getConnectionState(), ClientConnectionState.CONNECTED);
+            assertEquals(client.getState(), ClientConnectionState.CONNECTED);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

@@ -5,16 +5,16 @@ import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 
 import java.nio.ByteBuffer;
 
-public abstract class Packet {
-    private final PacketType type;
+public abstract class PacketBody {
+    private final PacketBodyType type;
     private final ProtocolRole role;
 
-    protected Packet(PacketType type, ProtocolRole role) {
+    protected PacketBody(PacketBodyType type, ProtocolRole role) {
         this.type = type;
         this.role = role;
     }
 
-    public PacketType getType() {
+    public PacketBodyType getType() {
         return type;
     }
 

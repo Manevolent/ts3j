@@ -1,30 +1,31 @@
 package com.github.manevolent.ts3j.protocol.packet.handler;
 
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
-import com.github.manevolent.ts3j.protocol.LocalEndpoint;
+import com.github.manevolent.ts3j.protocol.Packet;
+import com.github.manevolent.ts3j.protocol.socket.client.TeamspeakClientSocket;
 
 import java.io.IOException;
+import java.util.concurrent.TimeoutException;
 
 public abstract class PacketHandler {
-    private final LocalEndpoint endpoint;
+    private final TeamspeakClientSocket clientSocket;
 
-    protected PacketHandler(LocalEndpoint endpoint) {
-        this.endpoint = endpoint;
+    protected PacketHandler(TeamspeakClientSocket clientSocket) {
+        this.clientSocket = clientSocket;
     }
 
     public void onUnassigning() throws IOException {
 
     }
 
-    public void onAssigned() throws IOException {
+    public void onAssigned() throws IOException, TimeoutException {
 
     }
 
-    public void handlePacket(NetworkPacket packet) throws IOException {
+    public void handlePacket(Packet packet) throws IOException, TimeoutException {
 
     }
 
-    public LocalEndpoint getEndpoint() {
-        return endpoint;
+    public TeamspeakClientSocket getClient() {
+        return clientSocket;
     }
 }

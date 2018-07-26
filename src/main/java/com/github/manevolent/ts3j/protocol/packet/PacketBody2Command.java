@@ -2,16 +2,15 @@ package com.github.manevolent.ts3j.protocol.packet;
 
 import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 
-public class Packet2Command extends Packet {
+public class PacketBody2Command extends PacketBody {
     private String text;
 
-    public Packet2Command(ProtocolRole role) {
-        super(PacketType.COMMAND, role);
+    public PacketBody2Command(ProtocolRole role) {
+        super(PacketBodyType.COMMAND, role);
     }
 
     public String getText() {

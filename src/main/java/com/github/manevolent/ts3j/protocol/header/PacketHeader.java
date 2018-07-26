@@ -1,7 +1,7 @@
 package com.github.manevolent.ts3j.protocol.header;
 
-import com.github.manevolent.ts3j.protocol.packet.PacketType;
-import com.github.manevolent.ts3j.protocol.packet.Packet;
+import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
 import java.nio.ByteBuffer;
@@ -13,7 +13,7 @@ public abstract class PacketHeader {
     private int packetGeneration;
     private byte[] mac = new byte[8]; // 8 bytes
     private int packetId = 0;
-    private PacketType type;
+    private PacketBodyType type;
     private int packetFlags;
 
     protected PacketHeader(ProtocolRole role) {
@@ -44,11 +44,11 @@ public abstract class PacketHeader {
         }
     }
 
-    public PacketType getType() {
+    public PacketBodyType getType() {
         return type;
     }
 
-    public void setType(PacketType type) {
+    public void setType(PacketBodyType type) {
         this.type = type;
     }
 
@@ -65,7 +65,7 @@ public abstract class PacketHeader {
     }
 
     public void setMac(byte[] mac) {
-        Packet.assertArray("mac", mac, 8);
+        PacketBody.assertArray("mac", mac, 8);
 
         this.mac = mac;
     }
