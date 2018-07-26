@@ -213,7 +213,7 @@ public abstract class AbstractTeamspeakClientSocket
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
-        if (!packet.getHeader().getPacketFlag(HeaderFlag.NEW_PROTOCOL)) {
+        if (packet.getHeader().getType() != PacketBodyType.INIT1) {
             packetId++;
             packetId = packetId & 0x0000FFFF;
 

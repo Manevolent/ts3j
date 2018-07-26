@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.license;
 
 import Punisher.NaCl.Internal.Ed25519Ref10.*;
+import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -132,21 +133,28 @@ public class License {
     }
 
     public static String readNullTerminatedLicenseString(ByteBuffer buffer) {
-        StringBuilder builder = new StringBuilder();
+        int len = 0;
         while (buffer.remaining() > 0) {
-            char c = (char) buffer.get();
+            int c = buffer.get();
             switch (c) {
-                case '\0':
+                case 0:
                     break;
                 default:
-                    builder.append(c);
+                    len++;
+                    break;
             }
         }
-        return builder.toString();
+
+        byte[] stringBytes = new byte[len];
+        buffer.position(buffer.position() - len);
+        buffer.get(stringBytes);
+
+        return new String(stringBytes, Charset.forName("UTF8"));
     }
 
     public static void writeNullTerminatedLicenseString(ByteBuffer buffer, String s) {
-        buffer.put((s + "\0").getBytes(Charset.forName("ASCII")));
+        byte[] b = (s + (char) 0).getBytes();
+        buffer.put(b);
     }
 
     public static List<License> readLicenses(ByteBuffer buffer) {
@@ -178,8 +186,14 @@ public class License {
                 throw new RuntimeException(e);
             }
 
-            digest.update(buffer.array(), 1, buffer.array().length - 1);
-            return digest.digest();
+            digest.update(buffer.array(), 2, buffer.array().length - 2);
+
+            byte[] sliced = new byte[32];
+            System.arraycopy(digest.digest(), 0, sliced, 0, 32);
+
+            Ts3Logging.debug(Ts3Logging.getHex(buffer.array()));
+
+            return sliced;
         }
 
         return computedHash;
@@ -187,10 +201,13 @@ public class License {
 
     public byte[] deriveKey(byte[] parent) {
         // ScalarOperations.sc_clamp(Hash);
+        Ts3Logging.debug("ScalarOperations.sc_clamp: " + Ts3Logging.getHex(getHash()));
         ScalarOperations.sc_clamp(getHash(), 0);
+        Ts3Logging.debug("ScalarOperations.sc_clamp: " + Ts3Logging.getHex(getHash()));
 
         // GroupOperations.ge_frombytes_negate_vartime(out var pubkey, Key);
         GroupElementP3 pubkey = new GroupElementP3();
+        Ts3Logging.debug("ScalarOperations.ge_frombytes_negate_vartime: " + Ts3Logging.getHex(getPublicKey()));
         GroupOperations.ge_frombytes_negate_vartime(pubkey, getPublicKey(), 0);
 
         // GroupOperations.ge_frombytes_negate_vartime(out var parkey, parent);

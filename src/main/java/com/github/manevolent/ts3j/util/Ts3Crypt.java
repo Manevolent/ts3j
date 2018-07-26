@@ -34,14 +34,16 @@ public final class Ts3Crypt {
         // 3.2.2.2 Parsing the license
         List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));
 
+        Ts3Logging.debug("License.deriveKey: " + Ts3Logging.getHex(license));
         byte[] key = License.deriveKey(licenses);
+        Ts3Logging.debug("License.deriveKey: " + Ts3Logging.getHex(key));
 
-        Ts3Logging.debug("Computed license key: " + Ts3Logging.getHex(key));
-
+        Ts3Logging.debug("Ts3Crypt.generateSharedSecret2: " + Ts3Logging.getHex(key) + " " + Ts3Logging.getHex(privateKey));
         byte[] sharedSecret = Ts3Crypt.generateSharedSecret2(key, privateKey);
+        Ts3Logging.debug("Ts3Crypt.generateSharedSecret2: " + Ts3Logging.getHex(sharedSecret));
 
-        Ts3Logging.debug("Computed shared secret: " + Ts3Logging.getHex(sharedSecret));
-
+        Ts3Logging.debug("Ts3Crypt.SecureChannelParameters: " + Ts3Logging.getHex(alpha) + " " + Ts3Logging.getHex(beta) +
+                " " + Ts3Logging.getHex(sharedSecret));
         Ts3Crypt.SecureChannelParameters parameters =
                 Ts3Crypt.getSecureParameters(alpha, beta, sharedSecret);
 
