@@ -15,10 +15,6 @@ import java.math.BigInteger;
 import java.security.*;
 
 public class LocalIdentity extends Identity {
-    static {
-        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-    }
-
     private final BigInteger privateKey;
 
     public LocalIdentity(ECPoint publicKey, BigInteger privateKey) {
@@ -60,5 +56,9 @@ public class LocalIdentity extends Identity {
 
     public byte[] sign(byte[] data) {
         return Ts3Crypt.createSignature(privateKey, data);
+    }
+
+    public BigInteger getPrivateKey() {
+        return privateKey;
     }
 }

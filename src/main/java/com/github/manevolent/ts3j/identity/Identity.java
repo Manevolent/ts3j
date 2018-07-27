@@ -1,16 +1,10 @@
 package com.github.manevolent.ts3j.identity;
 
 import com.github.manevolent.ts3j.util.Ts3Crypt;
-import com.github.manevolent.ts3j.util.Ts3Logging;
-import org.bouncycastle.asn1.ASN1Encodable;
-import org.bouncycastle.asn1.DERBitString;
-import org.bouncycastle.asn1.DERInteger;
-import org.bouncycastle.asn1.DERSequence;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 import org.bouncycastle.math.ec.ECPoint;
 
-import java.io.IOException;
 import java.nio.charset.Charset;
-import java.security.DigestException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
@@ -83,7 +77,7 @@ public class Identity {
 
             if (curr > best)
             {
-                Ts3Logging.debug("Improved identity security level: from " + best + " to " + curr);
+                Ts3Debugging.debug("Improved identity security level: from " + best + " to " + curr);
                 keyOffset = lastCheckedKeyOffset;
                 best = curr;
             }

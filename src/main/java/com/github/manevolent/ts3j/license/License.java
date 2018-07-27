@@ -1,13 +1,10 @@
 package com.github.manevolent.ts3j.license;
 
 import Punisher.NaCl.Internal.Ed25519Ref10.*;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.security.DigestException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -137,19 +134,19 @@ public class License {
         while (buffer.remaining() > 0) {
             int c = buffer.get();
             switch (c) {
-                case 0:
-                    break;
+                case 0x00:
+                    byte[] stringBytes = new byte[len];
+                    buffer.position(buffer.position() - len);
+                    buffer.get(stringBytes);
+
+                    return new String(stringBytes, Charset.forName("UTF8"));
                 default:
                     len++;
                     break;
             }
         }
 
-        byte[] stringBytes = new byte[len];
-        buffer.position(buffer.position() - len);
-        buffer.get(stringBytes);
-
-        return new String(stringBytes, Charset.forName("UTF8"));
+        throw new IllegalStateException("string not null terminated");
     }
 
     public static void writeNullTerminatedLicenseString(ByteBuffer buffer, String s) {
@@ -160,13 +157,28 @@ public class License {
     public static List<License> readLicenses(ByteBuffer buffer) {
         List<License> licenses = new ArrayList<>();
 
+        byte licenseVersion = buffer.get();
+        if (licenseVersion != 0x01)
+            throw new IllegalArgumentException("invalid license version");
+
         while (buffer.remaining() > 0) {
-            byte licenseVersion = buffer.get();
-            if (licenseVersion != 0x01)
-                throw new IllegalArgumentException("invalid license version");
+            int start = buffer.position();
 
             License license = new License();
             license.read(buffer);
+
+            int end = buffer.position();
+
+            int len = end - start;
+
+            byte[] hashableLicense = new byte[len - 1];
+            System.arraycopy(buffer.array(), start + 1, hashableLicense, 0, len - 1);
+
+            byte[] licenseHash = Ts3Crypt.hash512(hashableLicense);
+
+            byte[] splicedHash = new byte[32];
+            System.arraycopy(licenseHash, 0, splicedHash, 0, 32);
+            license.computedHash = splicedHash;
             licenses.add(license);
         }
 
@@ -174,40 +186,15 @@ public class License {
     }
 
     public byte[] getHash() {
-        if (computedHash == null) {
-            ByteBuffer buffer = ByteBuffer.allocate(getSize());
-            write(buffer);
-
-            MessageDigest digest;
-
-            try {
-                digest = MessageDigest.getInstance("SHA512");
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-
-            digest.update(buffer.array(), 2, buffer.array().length - 2);
-
-            byte[] sliced = new byte[32];
-            System.arraycopy(digest.digest(), 0, sliced, 0, 32);
-
-            Ts3Logging.debug(Ts3Logging.getHex(buffer.array()));
-
-            return sliced;
-        }
-
         return computedHash;
     }
 
     public byte[] deriveKey(byte[] parent) {
         // ScalarOperations.sc_clamp(Hash);
-        Ts3Logging.debug("ScalarOperations.sc_clamp: " + Ts3Logging.getHex(getHash()));
         ScalarOperations.sc_clamp(getHash(), 0);
-        Ts3Logging.debug("ScalarOperations.sc_clamp: " + Ts3Logging.getHex(getHash()));
 
         // GroupOperations.ge_frombytes_negate_vartime(out var pubkey, Key);
         GroupElementP3 pubkey = new GroupElementP3();
-        Ts3Logging.debug("ScalarOperations.ge_frombytes_negate_vartime: " + Ts3Logging.getHex(getPublicKey()));
         GroupOperations.ge_frombytes_negate_vartime(pubkey, getPublicKey(), 0);
 
         // GroupOperations.ge_frombytes_negate_vartime(out var parkey, parent);
@@ -232,7 +219,7 @@ public class License {
         byte[] final_ = new byte[32];
         GroupOperations.ge_p3_tobytes(final_, 0, r2);
 
-        final_[1] ^= 0x80;
+        //final_[1] ^= 0x80;
 
         return final_;
     }

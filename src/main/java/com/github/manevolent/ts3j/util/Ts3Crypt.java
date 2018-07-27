@@ -5,6 +5,7 @@ import Punisher.NaCl.Internal.Ed25519Ref10.GroupElementP3;
 import Punisher.NaCl.Internal.Ed25519Ref10.GroupOperations;
 import Punisher.NaCl.Internal.Ed25519Ref10.ScalarOperations;
 import Punisher.NaCl.Internal.Sha512;
+import com.github.manevolent.ts3j.identity.*;
 import com.github.manevolent.ts3j.license.License;
 import javafx.util.Pair;
 import org.bouncycastle.asn1.*;
@@ -22,33 +23,49 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.security.*;
 import java.util.List;
 
 public final class Ts3Crypt {
+    static {
+        Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+    }
+
+    public static byte[] hash128(byte[] data) {
+        try {
+            return MessageDigest.getInstance("SHA1").digest(data);
+        } catch (GeneralSecurityException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static byte[] hash256(byte[] data) {
+        try {
+            return MessageDigest.getInstance("SHA256").digest(data);
+        } catch (GeneralSecurityException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static byte[] hash512(byte[] data) {
+        try {
+            return MessageDigest.getInstance("SHA512").digest(data);
+        } catch (GeneralSecurityException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public static Ts3Crypt.SecureChannelParameters cryptoInit2(byte[] license, byte[] alpha,
                                                                byte[] omega, byte[] proof,
                                                                byte[] beta, byte[] privateKey) {
         // 3.2.2.2 Parsing the license
         List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));
 
-        Ts3Logging.debug("License.deriveKey: " + Ts3Logging.getHex(license));
         byte[] key = License.deriveKey(licenses);
-        Ts3Logging.debug("License.deriveKey: " + Ts3Logging.getHex(key));
-
-        Ts3Logging.debug("Ts3Crypt.generateSharedSecret2: " + Ts3Logging.getHex(key) + " " + Ts3Logging.getHex(privateKey));
         byte[] sharedSecret = Ts3Crypt.generateSharedSecret2(key, privateKey);
-        Ts3Logging.debug("Ts3Crypt.generateSharedSecret2: " + Ts3Logging.getHex(sharedSecret));
 
-        Ts3Logging.debug("Ts3Crypt.SecureChannelParameters: " + Ts3Logging.getHex(alpha) + " " + Ts3Logging.getHex(beta) +
-                " " + Ts3Logging.getHex(sharedSecret));
         Ts3Crypt.SecureChannelParameters parameters =
                 Ts3Crypt.getSecureParameters(alpha, beta, sharedSecret);
-
-        Ts3Logging.debug("Computed fake fingerprint: " + Ts3Logging.getHex(parameters.getFakeSignature()));
-        Ts3Logging.debug("Computed IV struct: " + Ts3Logging.getHex(parameters.getIvStruct()));
 
         return parameters;
     }
@@ -62,6 +79,30 @@ public final class Ts3Crypt {
             outBuf[i + outOffs] = (byte)(a[i + aoffs] ^ b[i + boffs]);
     }
 
+    public static byte[] generateClientEkProof(byte[] key, byte[] beta,
+                                               LocalIdentity identity) {
+        return generateClientEkProof(key, beta, identity.getPrivateKey());
+    }
+
+    public static byte[] generateClientEkProof(byte[] key, byte[] beta,
+                                               BigInteger privateKey) {
+        // generate proof for clientek
+        byte[] data = new byte[86];
+        System.arraycopy(key, 0, data, 0, 32);
+        System.arraycopy(beta, 0, data, 32, 54);
+
+        return createSignature(privateKey, data);
+    }
+
+    public static boolean verifyClientEkProof(byte[] key, byte[] beta, byte[] signature, ECPoint publicKey) {
+        // generate proof for clientek
+        byte[] data = new byte[86];
+        System.arraycopy(key, 0, data, 0, 32);
+        System.arraycopy(beta, 0, data, 32, 54);
+
+        return verifySignature(publicKey, data, signature);
+    }
+
     public static SecureChannelParameters getSecureParameters(byte[] alpha, byte[] beta, byte[] sharedKey) {
         if (beta.length != 10 && beta.length != 54)
             throw new IllegalArgumentException("invalid beta size (" + beta.length + ")");
@@ -72,13 +113,7 @@ public final class Ts3Crypt {
         xor(sharedKey, 0, alpha, 0, alpha.length, ivStruct, 0);
         xor(sharedKey, 10, beta, 0, beta.length, ivStruct, 10);
 
-        byte[] buffer;
-
-        try {
-           buffer = MessageDigest.getInstance("SHA1").digest(ivStruct);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
+        byte[] buffer = hash128(ivStruct);
 
         System.arraycopy(buffer, 0, fakeSignature, 0, 8);
 
@@ -190,6 +225,9 @@ public final class Ts3Crypt {
 
         byte[] publicKey = new byte[32];
         GroupOperations.ge_p3_tobytes(publicKey, 0, A);
+
+        Ts3Debugging.debug(publicKey);
+        Ts3Debugging.debug(privateKey);
 
         return new Pair<>(publicKey, privateKey);
     }

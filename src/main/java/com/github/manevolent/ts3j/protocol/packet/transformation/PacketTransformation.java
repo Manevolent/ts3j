@@ -3,7 +3,7 @@ package com.github.manevolent.ts3j.protocol.packet.transformation;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.util.Ts3Crypt;
 import javafx.util.Pair;
 import org.bouncycastle.crypto.CipherParameters;
 import org.bouncycastle.crypto.InvalidCipherTextException;
@@ -14,48 +14,38 @@ import org.bouncycastle.crypto.params.KeyParameter;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 
 public class PacketTransformation {
     private static final int MAC_LEN = 8;
-    private static MessageDigest SHA256;
-
-    {
-        try {
-            SHA256 = MessageDigest.getInstance("SHA256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private final byte[] key;
+    private final byte[] ivStruct;
+    private final byte[] fakeMac;
 
     private final EAXBlockCipher cipher;
 
-    public PacketTransformation(byte[] key) {
-        this.key = key;
+    public PacketTransformation(byte[] ivStruct, byte[] fakeMac) {
+        this.ivStruct = ivStruct;
         this.cipher = new EAXBlockCipher(new AESEngine());
+        this.fakeMac = fakeMac;
+    }
+
+    public byte[] getFakeMac() {
+        return fakeMac;
     }
 
     public Pair<byte[], byte[]> computeParameters(PacketHeader header) {
         ByteBuffer temporaryByteBuffer = ByteBuffer
-                .allocate(key.length == 20 ? 26 : 70)
+                .allocate(ivStruct.length == 20 ? 26 : 70)
                 .order(ByteOrder.BIG_ENDIAN);
 
         temporaryByteBuffer.put((byte) (header.getRole() == ProtocolRole.SERVER ? 0x30 : 0x31));
         temporaryByteBuffer.put((byte) (header.getType().getIndex() & 0xFF));
-        temporaryByteBuffer.put((byte) (header.getGeneration() & 0xFF));
+        temporaryByteBuffer.putInt(header.getGeneration() & 0x000000FFFFFF);
 
-        if (key.length == 20) {
-            //temporary[6 - 26] = SIV[0 - 20]
-            temporaryByteBuffer.put(key, 0, 20);
-        } else {
-            //temporary[6 - 70] = SIV[0 - 64]
-            temporaryByteBuffer.put(key, 0, 64);
-        }
+        temporaryByteBuffer.put(ivStruct);
 
-        byte[] key_nonce = SHA256.digest(temporaryByteBuffer.array());
+        byte[] arrayHash = temporaryByteBuffer.array();
+
+        byte[] key_nonce = Ts3Crypt.hash256(arrayHash);
 
         byte[] key = new byte[16];
         byte[] nonce = new byte[16];
@@ -63,11 +53,11 @@ public class PacketTransformation {
         System.arraycopy(key_nonce, 0, key, 0, 16);
         System.arraycopy(key_nonce, 16, nonce, 0, 16);
 
-        // key[0]          = key[0] xor ((PId & 0xFF00) >> 8)
-        // key[1]          = key[1] xor ((PId & 0x00FF) >> 0)
+        // ivStruct[0]          = ivStruct[0] xor ((PId & 0xFF00) >> 8)
+        // ivStruct[1]          = ivStruct[1] xor ((PId & 0x00FF) >> 0)
 
-        key[0] = (byte) (key[0] ^ ((byte) (header.getType().getIndex() & 0xFF00) >> 8));
-        key[1] = (byte) (key[0] ^ ((byte) (header.getType().getIndex() & 0x00FF) >> 0));
+        key[0] = (byte) (key[0] ^ ((byte) (header.getPacketId() & 0xFF) >> 8) & 0xFF);
+        key[1] = (byte) (key[1] ^ ((byte) (header.getPacketId() & 0xFF) >> 0) & 0xFF);
 
         return new Pair<>(key, nonce);
     }
@@ -120,8 +110,6 @@ public class PacketTransformation {
         // Rest of header
         outputBuffer.put(headerWithoutMac);
 
-        Ts3Logging.debug("WRITE HEADER: " + Ts3Logging.getHex(outputBuffer.array(), headerBuffer.limit()));
-
         // Encrypted body
         outputBuffer.put(result, 0, len - MAC_LEN);
 
@@ -146,7 +134,6 @@ public class PacketTransformation {
         int len;
 
         synchronized (cipher) {
-
             cipher.init(false, cipherParameters);
             result = new byte[cipher.getOutputSize(dataLen + MAC_LEN)];
 
@@ -160,9 +147,7 @@ public class PacketTransformation {
 
             if (len != dataLen)
                 throw new IllegalArgumentException(len + " != " + dataLen);
-
         }
-
 
         return result;
     }

@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet;
 
+import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
@@ -11,6 +12,16 @@ public class PacketBody2Command extends PacketBody {
 
     public PacketBody2Command(ProtocolRole role) {
         super(PacketBodyType.COMMAND, role);
+    }
+
+    public PacketBody2Command(ProtocolRole role, String command) {
+        this(role);
+
+        this.text = command;
+    }
+
+    public PacketBody2Command(ProtocolRole role, Command command) {
+        this(role, command.build());
     }
 
     public String getText() {
@@ -27,12 +38,12 @@ public class PacketBody2Command extends PacketBody {
 
     @Override
     public void read(ByteBuffer buffer) {
-        text = Charset.forName("ASCII").decode(buffer).toString();
+        text = Charset.forName("UTF8").decode(buffer).toString();
     }
 
     @Override
     public void write(ByteBuffer buffer) {
-        buffer.put(text.getBytes(Charset.forName("ASCII")));
+        buffer.put(text.getBytes(Charset.forName("UTF8")));
     }
 
     @Override

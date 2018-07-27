@@ -1,7 +1,6 @@
 package com.github.manevolent.ts3j.license;
 
 import com.github.manevolent.ts3j.enums.LicenseType;
-import com.github.manevolent.ts3j.util.Ts3Logging;
 
 import java.nio.ByteBuffer;
 

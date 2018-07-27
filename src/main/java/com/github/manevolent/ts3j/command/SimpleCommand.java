@@ -4,7 +4,6 @@ import com.github.manevolent.ts3j.command.part.CommandOption;
 import com.github.manevolent.ts3j.command.part.CommandParameter;
 import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.util.Ts3Logging;
 import com.github.manevolent.ts3j.util.Ts3String;
 
 import java.util.*;

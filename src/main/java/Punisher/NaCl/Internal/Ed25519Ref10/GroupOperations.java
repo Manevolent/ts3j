@@ -1065,6 +1065,6 @@ public class GroupOperations
         FieldOperations.fe_mul(x, h.X, recip);
         FieldOperations.fe_mul(y, h.Y, recip);
         FieldOperations.fe_tobytes(s, offset, y);
-        s[offset + 31] ^= (byte) (FieldOperations.fe_isnegative(x) << 7);
+        //s[offset + 31] ^= (byte) (FieldOperations.fe_isnegative(x) << 7);
     }
 }

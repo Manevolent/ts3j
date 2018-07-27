@@ -20,7 +20,7 @@ import com.github.manevolent.ts3j.protocol.packet.transformation.DefaultPacketTr
 import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -32,6 +32,10 @@ import java.util.concurrent.*;
 public abstract class AbstractTeamspeakClientSocket
         extends AbstractTeamspeakSocket
         implements TeamspeakClientSocket {
+    private static final byte[] INIT1_MAC  = new byte[] {
+            0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31
+    };
+
     private final Object connectionStateLock = new Object();
     private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new LinkedHashMap<>();
@@ -85,7 +89,7 @@ public abstract class AbstractTeamspeakClientSocket
     }
 
     public final void setSecureParameters(Ts3Crypt.SecureChannelParameters parameters) {
-        setTransformation(new PacketTransformation(parameters.getIvStruct()));
+        setTransformation(new PacketTransformation(parameters.getIvStruct(), parameters.getFakeSignature()));
     }
 
     protected abstract NetworkPacket readNetworkPacket() throws IOException;
@@ -95,7 +99,7 @@ public abstract class AbstractTeamspeakClientSocket
     public void setState(ClientConnectionState state) throws IOException, TimeoutException {
         synchronized (connectionStateLock) {
             if (state != this.connectionState) {
-                Ts3Logging.debug("State changing: " + state.name());
+                Ts3Debugging.debug("State changing: " + state.name());
 
                 boolean wasDisconnected = this.connectionState == ClientConnectionState.DISCONNECTED;
 
@@ -110,7 +114,7 @@ public abstract class AbstractTeamspeakClientSocket
                 if (state == ClientConnectionState.DISCONNECTED)
                     clientOptions.clear();
 
-                Ts3Logging.debug("State changed: " + state.name());
+                Ts3Debugging.debug("State changed: " + state.name());
             }
         }
 
@@ -120,11 +124,11 @@ public abstract class AbstractTeamspeakClientSocket
             ((LocalClientHandler) handler).handleConnectionStateChanging(state);
 
         if (handler == null || handler.getClass() != state.getHandlerClass()) {
-            Ts3Logging.debug("Assigning " + state.getHandlerClass().getName() + " handler...");
+            Ts3Debugging.debug("Assigning " + state.getHandlerClass().getName() + " handler...");
 
             setHandler(state.createHandler(this));
 
-            Ts3Logging.debug("Assigned " + state.getHandlerClass().getName() + " handler.");
+            Ts3Debugging.debug("Assigned " + state.getHandlerClass().getName() + " handler.");
         }
     }
 
@@ -206,10 +210,6 @@ public abstract class AbstractTeamspeakClientSocket
         // Ensure type matches
         packet.getHeader().setType(packet.getBody().getType());
 
-        // Make sure new protocol is set if it must be set
-        if (getState() == ClientConnectionState.CONNECTING)
-            packet.getHeader().setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
-
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
@@ -225,6 +225,10 @@ public abstract class AbstractTeamspeakClientSocket
             packet.getHeader().setGeneration(generationId);
             packet.getHeader().setPacketId(packetId);
         }
+
+        if (packet.getHeader().getType() == PacketBodyType.COMMAND ||
+                packet.getHeader().getType() == PacketBodyType.COMMAND_LOW)
+            packet.getHeader().setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
 
         if (packet.getSize() > 500) {
             if (!packet.getHeader().getType().isSplittable())
@@ -272,10 +276,18 @@ public abstract class AbstractTeamspeakClientSocket
         // Flush to a buffer
         ByteBuffer outputBuffer;
 
-        if (packet.getBody().getType().canEncrypt() &&
-                !packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
+        if (!packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
+            if (!packet.getHeader().getType().canEncrypt())
+                throw new IllegalArgumentException("packet flagged as encrypted but this would be a violation");
+
             outputBuffer = getTransformation().encrypt(packet);
         } else {
+            if (packet.getHeader().getType() == PacketBodyType.INIT1) {
+                System.arraycopy(INIT1_MAC, 0, packet.getHeader().getMac(), 0, 8);
+            } else {
+                System.arraycopy(transformation.getFakeMac(), 0, packet.getHeader().getMac(), 0, 8);
+            }
+
             outputBuffer = ByteBuffer.allocate(packet.getSize());
 
             outputBuffer.order(ByteOrder.BIG_ENDIAN);
@@ -304,7 +316,10 @@ public abstract class AbstractTeamspeakClientSocket
         else
             response = null;
 
-        Ts3Logging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
+        Ts3Debugging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
+        for (HeaderFlag flag : HeaderFlag.values())
+            Ts3Debugging.debug(flag.name() + ": " + networkPacket.getHeader().getPacketFlag(flag));
+
         writeNetworkPacket(networkPacket);
 
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
@@ -343,12 +358,9 @@ public abstract class AbstractTeamspeakClientSocket
         boolean fragment = networkPacket.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED);
 
         if (networkPacket.getHeader().getType().isSplittable()) {
-            if (fragment)
-                throw new IllegalArgumentException("packet is fragment, but not splittable");
-            else {
-                fragment = reassemblyQueue.get(networkPacket.getHeader().getType()).isReassembling();
-            }
-        }
+            fragment = fragment || reassemblyQueue.get(networkPacket.getHeader().getType()).isReassembling();
+        } else if (fragment)
+            throw new IllegalArgumentException("packet is fragment, but not splittable");
 
         boolean encrypted = !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED) &&
                 networkPacket.getHeader().getType().canEncrypt();
@@ -370,9 +382,14 @@ public abstract class AbstractTeamspeakClientSocket
             );
         }
 
+        Ts3Debugging.debug("[NETWORK] READ " +
+                packet.getHeader().getType() + " BODY "
+                + Ts3Debugging.getHex(packetBuffer.array())
+        );
+
         // Fragment handling
         if (fragment) {
-            Ts3Logging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name() + " fragment");
+            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name() + " fragment");
 
             packet.setBody(
                     new PacketBodyFragment(
@@ -381,7 +398,7 @@ public abstract class AbstractTeamspeakClientSocket
                     )
             );
         } else {
-            Ts3Logging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
+            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
         }
 
         // Compression?
@@ -406,6 +423,12 @@ public abstract class AbstractTeamspeakClientSocket
                         writePacket(new PacketBody6Ack(getRole().getOut(), packet.getHeader().getPacketId()));
                         break;
                 }
+            }
+
+            // Find if the packet must be reassembled
+            if (packet.getBody() instanceof PacketBodyFragment) {
+                packet = reassemblyQueue.get(packet.getHeader().getType()).put(packet);
+                if (packet == null) continue;
             }
 
             // Find if the packet is itself an acknowledgement
@@ -504,13 +527,13 @@ public abstract class AbstractTeamspeakClientSocket
                 try {
                     Packet packet = readQueue.take();
 
-                    Ts3Logging.debug("Processing " + packet + "...");
+                    Ts3Debugging.debug("Processing " + packet + "...");
                     getHandler().handlePacket(packet);
-                    Ts3Logging.debug("Processed " + packet + ".");
+                    Ts3Debugging.debug("Processed " + packet + ".");
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) continue;
 
-                    Ts3Logging.debug("Problem handling packet", e);
+                    Ts3Debugging.debug("Problem handling packet", e);
                 }
             }
         }
@@ -525,7 +548,7 @@ public abstract class AbstractTeamspeakClientSocket
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) continue;
 
-                    Ts3Logging.debug("Problem reading packet", e);
+                    Ts3Debugging.debug("Problem reading packet", e);
                 }
             }
         }
@@ -629,11 +652,9 @@ public abstract class AbstractTeamspeakClientSocket
                 if (!(packet.getBody() instanceof PacketBodyFragment))
                     throw new IllegalArgumentException("packet fragment object is not representative of a fragment");
 
-                boolean fragmentationEnded = oldState;
-
                 queue.put(packet.getHeader().getPacketId(), packet);
 
-                if (fragmentationEnded)
+                if (oldState)
                     return reassemble(packet);
 
                 return null;

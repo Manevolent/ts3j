@@ -10,10 +10,6 @@ import java.nio.ByteOrder;
 import static com.github.manevolent.ts3j.protocol.packet.PacketBodyType.INIT1;
 
 public class PacketBody8Init1 extends PacketBody {
-    private static final byte[] LOW_LEVEL_MAC  = new byte[] {
-            0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31
-    };
-
     private byte[] version = new byte[4]; // 4 bytes
     private Step step; // step instance
 
@@ -25,7 +21,6 @@ public class PacketBody8Init1 extends PacketBody {
 
     @Override
     public void setHeaderValues(PacketHeader header) {
-        header.setMac(LOW_LEVEL_MAC);
         header.setPacketFlag(HeaderFlag.UNENCRYPTED, true);
         header.setPacketId((short)101);
     }

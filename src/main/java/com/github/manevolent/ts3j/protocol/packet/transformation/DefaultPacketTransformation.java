@@ -12,7 +12,7 @@ public class DefaultPacketTransformation extends PacketTransformation {
             {0x6D, 0x5C, 0x66, 0x69, 0x72, 0x65, 0x77, 0x61, 0x6C, 0x6C, 0x33, 0x32, 0x2E, 0x63, 0x70, 0x6C};
 
     public DefaultPacketTransformation() {
-        super(key);
+        super(key, new byte[8]);
     }
 
     @Override

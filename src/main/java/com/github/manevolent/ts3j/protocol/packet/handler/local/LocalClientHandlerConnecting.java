@@ -4,12 +4,11 @@ import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody8Init1;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 import javafx.util.Pair;
 import org.bouncycastle.math.ec.ECPoint;
 
@@ -46,9 +45,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
     }
 
     private void sendInit1(PacketBody8Init1 packet) throws IOException, TimeoutException {
-        Ts3Logging.debug("Connecting: sending " + packet.getClass().getSimpleName()
-                + ":"
-                + packet.getStep().getClass().getSimpleName() + "..."
+        Ts3Debugging.debug("Connecting: sending " + packet.getClass().getSimpleName()
+                        + ":"
+                        + packet.getStep().getClass().getSimpleName() + "..."
         );
 
         packet.setVersion(new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF });
@@ -58,7 +57,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
     @Override
     public void handlePacket(Packet packet) throws IOException, TimeoutException {
-        Ts3Logging.debug("Connecting: handling " + packet.getBody().getClass().getSimpleName());
+        Ts3Debugging.debug("Connecting: handling " + packet.getBody().getClass().getSimpleName());
 
         if (packet.getBody() instanceof PacketBody8Init1) {
             PacketBody8Init1 init1 = (PacketBody8Init1) packet.getBody();
@@ -102,7 +101,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     byte[] solution =
                             x.modPow(BigInteger.valueOf(2L).pow(serverReplyStep3.getLevel()), n).toByteArray();
 
-                    Ts3Logging.debug(Ts3Logging.getHex(solution));
+                    Ts3Debugging.debug(Ts3Debugging.getHex(solution));
 
                     System.arraycopy(
                             solution, Math.abs(solution.length - 64),
@@ -155,19 +154,19 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
 
-                Ts3Logging.debug("initivexpand2");
+                Ts3Debugging.debug(command.build());
 
                 if (!command.get("ot").getValue().equals("1"))
                     throw new IllegalArgumentException("ot constant != 1: " + command.get("ot").getValue());
 
                 byte[] license = Base64.getDecoder().decode(command.get("l").getValue());
-                byte[] licsense_validation = command.get("tvd").getValue() == null ?
+                byte[] licsense_validation = !command.has("tvd") ?
                         null :
                         Base64.getDecoder().decode(command.get("tvd").getValue());
 
                 byte[] beta = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
                 byte[] omega = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
-                byte[] proof = Base64.getDecoder().decode(command.get("proof").getValue()); // ecdh_sign(1)
+                byte[] proof = Base64.getDecoder().decode(command.get("proof").getValue());
 
                 Pair<byte[], byte[]> keyPair = Ts3Crypt.generateKeypair();
 
@@ -178,52 +177,68 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 ECPoint publicKey = Ts3Crypt.decodePublicKey(omega);
 
                 if (!Ts3Crypt.verifySignature(publicKey, license, proof))
-                    throw new SecurityException("invalid proof signature: " + Ts3Logging.getHex(proof));
+                    throw new SecurityException("invalid proof signature: " + Ts3Debugging.getHex(proof));
 
-                // generate proof for clientek
-                byte[] toSign = new byte[86];
-                System.arraycopy(keyPair.getKey(), 0, toSign, 0, 32);
-                System.arraycopy(beta, 0, toSign, 32, 54);
-                byte[] sign = getClient().getIdentity().sign(toSign);
+                byte[] signature = Ts3Crypt.generateClientEkProof(
+                        keyPair.getKey(),
+                        beta,
+                        getClient().getIdentity()
+                );
 
-                Ts3Logging.debug("Created proof (clientek): " + Ts3Logging.getHex(sign));
+                Ts3Debugging.debug("Sending clientek...");
 
-                // Send clientek (telling them the shared secret)
                 PacketBody2Command clientek = new PacketBody2Command(ProtocolRole.CLIENT);
                 clientek.setText(
                         new SimpleCommand(
                                 "clientek", ProtocolRole.CLIENT,
                                 new CommandSingleParameter("ek", Base64.getEncoder().encodeToString(keyPair.getKey())),
-                                new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(sign))
+                                new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(signature))
                         ).build()
                 );
+
+                Ts3Debugging.debug(clientek.getText());
+
                 getClient().writePacket(clientek);
 
                 getClient().setSecureParameters(
                         Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue())
                 );
 
+                Ts3Debugging.debug("Sending clientinit...");
+
                 PacketBody2Command clientinit = new PacketBody2Command(ProtocolRole.CLIENT);
 
                 clientinit.setText(
                         new SimpleCommand(
-                                "clientinit", ProtocolRole.CLIENT,
+                                "clientinit",
+                                ProtocolRole.CLIENT,
                                 new CommandSingleParameter("client_nickname", "test"),
-                                new CommandSingleParameter("client_version", "3.0.19.3"),
+                                new CommandSingleParameter("client_version", "3.1 [Build: 1471417187]"),
                                 new CommandSingleParameter("client_platform", "Windows"),
-                                new CommandSingleParameter("client_version_sign", "a1OYzvM18mrmfUQBUgxYBxYz2DUU6y5k3/mEL6FurzU0y97Bd1FL7+PRpcHyPkg4R+kKAFZ1nhyzbgkGphDWDg=="),
-                                new CommandSingleParameter("client_input_hardware", "true"),
-                                new CommandSingleParameter("client_output_hardware", "false"),
+                                new CommandSingleParameter(
+                                        "client_version_sign",
+                                        "gDEgQf/BiOQZdAheKccM1XWcMUj2OUQqt75oFuvF2c0MQMXyv88cZQdUuckKbcBRp7RpmLInto4PIgd7mPO7BQ=="
+                                ),
+                                new CommandSingleParameter("client_input_hardware", "1"),
+                                new CommandSingleParameter("client_output_hardware", "1"),
                                 new CommandSingleParameter("client_default_channel", ""),
                                 new CommandSingleParameter("client_default_channel_password", ""),
                                 new CommandSingleParameter("client_server_password", ""),
                                 new CommandSingleParameter("client_nickname_phonetic", "test"),
                                 new CommandSingleParameter("client_meta_data", ""),
                                 new CommandSingleParameter("client_default_token", ""),
-                                new CommandSingleParameter("client_key_offset", Long.toString(getClient().getIdentity().getKeyOffset())),
-                                new CommandSingleParameter("hwid", "87056c6e1268aaf5055abf8256415e0e,408978b6d98810cc03f0aa16a4c75600")
+                                new CommandSingleParameter(
+                                        "client_key_offset",
+                                        Long.toString(getClient().getIdentity().getKeyOffset())
+                                ),
+                                new CommandSingleParameter(
+                                        "hwid",
+                                        "+LyYqbDqOvJJpN5pdAbF8/v5kZ0="
+                                )
                         ).build()
                 );
+
+                Ts3Debugging.debug(clientinit.getText());
 
                 getClient().writePacket(clientinit);
             }

@@ -4,7 +4,7 @@ import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
-import com.github.manevolent.ts3j.util.Ts3Logging;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -36,7 +36,7 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
     protected NetworkPacket readNetworkPacket() throws IOException {
         socket.receive(packet);
 
-        Ts3Logging.debug("[NETWORK] READ len=" + packet.getLength() + " from " + packet.getSocketAddress());
+        Ts3Debugging.debug("[NETWORK] READ len=" + packet.getLength() + " from " + packet.getSocketAddress());
 
         PacketHeader header;
 
@@ -61,10 +61,11 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
 
     @Override
     protected void writeNetworkPacket(NetworkPacket packet) throws IOException {
-        Ts3Logging.debug("[NETWORK] WRITE id=" + packet.getHeader().getPacketId() + " len=" +
+        Ts3Debugging.debug("[NETWORK] WRITE id=" + packet.getHeader().getPacketId() + " len=" +
                 packet.getDatagram().getLength()
                 + " to " +
                 socket.getRemoteSocketAddress());
+        Ts3Debugging.debug("[NETWORK] WRITE " + Ts3Debugging.getHex(packet.getBuffer().array()));
 
         socket.send(packet.getDatagram());
     }
@@ -89,7 +90,7 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
     public void connect(InetSocketAddress remote, String password, long timeout)
             throws IOException, TimeoutException {
         try {
-            Ts3Logging.debug("Connecting to " + remote + "...");
+            Ts3Debugging.debug("Connecting to " + remote + "...");
 
             ClientConnectionState connectionState = getState();
 
