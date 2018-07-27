@@ -327,15 +327,13 @@ public abstract class AbstractTeamspeakClientSocket
                     packet.getHeader().getPacketId(),
                     response = new PacketResponse(
                             networkPacket,
-                            Integer.MAX_VALUE
+                            networkPacket.getHeader().getType().canResend() ? Integer.MAX_VALUE : 0
                     )
             );
         else
             response = null;
 
         Ts3Debugging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
-        for (HeaderFlag flag : HeaderFlag.values())
-            Ts3Debugging.debug(flag.name() + ": " + networkPacket.getHeader().getPacketFlag(flag));
 
         writeNetworkPacket(networkPacket);
 
@@ -350,7 +348,10 @@ public abstract class AbstractTeamspeakClientSocket
                     response.waitForAcknowledgement(1000);
                     break;
                 } catch (TimeoutException e) {
-                    response.resend();
+                    if (response.willResend())
+                        response.resend();
+                    else
+                        throw e;
                 } catch (CancellationException e) {
                     throw e;
                 } catch (Exception e) {
@@ -397,11 +398,6 @@ public abstract class AbstractTeamspeakClientSocket
                     )
             );
         }
-
-        Ts3Debugging.debug("[NETWORK] READ " +
-                packet.getHeader().getType() + " BODY "
-                + Ts3Debugging.getHex(packetBuffer.array())
-        );
 
         // Fragment handling
         if (fragment) {
@@ -547,6 +543,14 @@ public abstract class AbstractTeamspeakClientSocket
         this.generationId = generationId;
     }
 
+    public String getNickname( ){
+        return getOption("client.nickname", String.class);
+    }
+
+    public void setNickname(String name) {
+        setOption("client.nickname", name);
+    }
+
     private class NetworkHandler implements Runnable {
         @Override
         public void run() {
@@ -554,9 +558,10 @@ public abstract class AbstractTeamspeakClientSocket
                 try {
                     Packet packet = readQueue.take();
 
-                    Ts3Debugging.debug("Processing " + packet + "...");
+                    // separate these so we getHandler at proper runtime instant rather than get it and let it change
+                    // on us
+
                     getHandler().handlePacket(packet);
-                    Ts3Debugging.debug("Processed " + packet + ".");
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) continue;
 
@@ -605,12 +610,25 @@ public abstract class AbstractTeamspeakClientSocket
             tries ++;
         }
 
+        /**
+         * Waits for a package acknowledgement.
+         * @return true if the acknowledgement wasn't null (shouldn't ever happen)
+         * @throws ExecutionException
+         * @throws InterruptedException
+         */
         public boolean waitForAcknowledgement()
                 throws ExecutionException, InterruptedException {
             Packet acknowledgement = future.get();
             return acknowledgement != null;
         }
 
+        /**
+         * Waits for a package acknowledgement.
+         * @param millis Milliseconds to wait.  When transpired with no completion, TimeoutException is thrown.
+         * @return true if the acknowledgement wasn't null (shouldn't ever happen)
+         * @throws ExecutionException
+         * @throws InterruptedException
+         */
         public boolean waitForAcknowledgement(long millis)
                 throws TimeoutException, ExecutionException, InterruptedException {
             Packet acknowledgement = future.get(millis, TimeUnit.MILLISECONDS);
@@ -618,7 +636,7 @@ public abstract class AbstractTeamspeakClientSocket
             return acknowledgement != null;
         }
 
-        public boolean isWillResend() {
+        public boolean willResend() {
             return willResend;
         }
 

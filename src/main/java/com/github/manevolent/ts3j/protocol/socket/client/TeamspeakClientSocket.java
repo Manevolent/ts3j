@@ -19,7 +19,7 @@ public interface TeamspeakClientSocket extends TeamspeakSocket {
     default <T extends Object> T getOption(String key, Class<T> clazz) {
         Object value = getOptions().get(key);
 
-        if (value == null) return (T) null;
+        if (value == null) return  null;
 
         else if (!value.getClass().isAssignableFrom(clazz)) {
             throw new ClassCastException(

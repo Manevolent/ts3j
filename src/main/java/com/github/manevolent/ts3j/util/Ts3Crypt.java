@@ -226,9 +226,13 @@ public final class Ts3Crypt {
         GroupOperations.ge_scalarmult_base(A, privateKey, 0);
 
         byte[] publicKey = new byte[32];
-        GroupOperations.ge_p3_tobytes_negate(publicKey, 0, A);
+        GroupOperations.ge_p3_tobytes(publicKey, 0, A);
 
         return new Pair<>(publicKey, privateKey);
+    }
+
+    public static ECPoint generatePublicKeyFromPrivateKey(BigInteger privateKey) {
+        return ECNamedCurveTable.getParameterSpec("prime256v1").getG().multiply(privateKey).normalize();
     }
 
     public static final class SecureChannelParameters {

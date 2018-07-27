@@ -41,7 +41,7 @@ public final class Ts3String {
                     case '/': sb.append('/'); break;
                     case '\\': sb.append('\\'); break;
                     default:
-                        throw new IllegalArgumentException("invalid escape code: " + c);
+                        throw new IllegalArgumentException("invalid escape code: " + string.charAt(i) + " (" + Character.getName(string.charAt(i)) + ")");
                 }
             } else sb.append(c);
         }

@@ -28,7 +28,6 @@ public class Identity {
 
     public Identity(ECPoint publicKey) {
         this.publicKey = publicKey;
-
         this.publicKeyString = Base64.getEncoder().encodeToString(Ts3Crypt.encodePublicKey(publicKey));
         this.fingerprint = generateFingerprint();
     }
@@ -98,7 +97,7 @@ public class Identity {
         int numLen = 0;
         do
         {
-            numBuffer[numLen] = (byte)((offset % 10) & 0xFF);
+            numBuffer[numLen] = (byte)(48 + (offset % 10));
             offset /= 10;
             numLen ++;
         } while (offset > 0);
@@ -132,7 +131,9 @@ public class Identity {
 
     private String generateFingerprint() {
         synchronized (sha1) {
-            return Base64.getEncoder().encodeToString(sha1.digest(Ts3Crypt.encodePublicKey(publicKey)));
+            return Base64.getEncoder().encodeToString(
+                    sha1.digest(getPublicKeyString().getBytes(Charset.forName("ASCII")))
+            );
         }
     }
 }

@@ -1058,26 +1058,14 @@ public class GroupOperations
     public static void ge_p3_tobytes(byte[] s, int offset, GroupElementP3 h)
     {
         FieldElement recip = new FieldElement();
-        FieldElement x = new FieldElement();
-        FieldElement y = new FieldElement();
+        FieldElement h1 = new FieldElement();
+        FieldElement h2 = new FieldElement();
 
         FieldOperations.fe_invert(recip, h.Z);
-        FieldOperations.fe_mul(x, h.X, recip);
-        FieldOperations.fe_mul(y, h.Y, recip);
-        FieldOperations.fe_tobytes(s, offset, y);
-    }
+        FieldOperations.fe_mul(h1, h.X, recip);
+        FieldOperations.fe_mul(h2, h.Y, recip);
+        FieldOperations.fe_tobytes(s, offset, h2);
 
-    public static void ge_p3_tobytes_negate(byte[] s, int offset, GroupElementP3 h)
-    {
-        FieldElement recip = new FieldElement();
-        FieldElement x = new FieldElement();
-        FieldElement y = new FieldElement();
-
-        FieldOperations.fe_invert(recip, h.Z);
-        FieldOperations.fe_mul(x, h.X, recip);
-        FieldOperations.fe_mul(y, h.Y, recip);
-        FieldOperations.fe_tobytes(s, offset, y);
-
-        s[offset + 31] ^= (byte) (FieldOperations.fe_isnegative(x) << 7);
+        s[offset + 31] ^= (byte) (FieldOperations.fe_isnegative(h1) << 7);
     }
 }

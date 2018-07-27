@@ -28,6 +28,10 @@ public class ServerConnectionTest  {
 
             client.setIdentity(localIdentity);
 
+            client.setNickname("Hello from Java");
+
+            client.setOption("client.hwid", "JAVAJAVAJAVA");
+
             client.connect(new InetSocketAddress(
                             "ts.teamlixo.net",
                             9987),

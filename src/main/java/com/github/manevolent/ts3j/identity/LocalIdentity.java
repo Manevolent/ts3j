@@ -24,15 +24,12 @@ public class LocalIdentity extends Identity {
     }
 
     public static LocalIdentity load(ECPoint publicKey,
-                                     BigInteger privateKey,
-                                     long keyOffset,
-                                     long lastCheckedKeyOffset) {
-        LocalIdentity localIdentity = new LocalIdentity(publicKey, privateKey);
+                                     BigInteger privateKey) {
+        return new LocalIdentity(publicKey, privateKey);
+    }
 
-        localIdentity.setKeyOffset(keyOffset);
-        localIdentity.setLastCheckedKeyOffset(lastCheckedKeyOffset);
-
-        return localIdentity;
+    public static LocalIdentity load(BigInteger privateKey) {
+        return new LocalIdentity(Ts3Crypt.generatePublicKeyFromPrivateKey(privateKey), privateKey);
     }
 
     public static LocalIdentity generateNew(int securityLevel) throws GeneralSecurityException {
@@ -48,7 +45,7 @@ public class LocalIdentity extends Identity {
         ECPrivateKeyParameters privateKey = (ECPrivateKeyParameters) keyPair.getPrivate();
         ECPublicKeyParameters publicKey = (ECPublicKeyParameters) keyPair.getPublic();
 
-        LocalIdentity localIdentity = load(publicKey.getQ().normalize(), privateKey.getD(), 0, 0);
+        LocalIdentity localIdentity = load(publicKey.getQ().normalize(), privateKey.getD());
         localIdentity.improveSecurity(securityLevel);
 
         return localIdentity;

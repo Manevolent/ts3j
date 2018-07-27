@@ -65,7 +65,6 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
                 packet.getDatagram().getLength()
                 + " to " +
                 socket.getRemoteSocketAddress());
-        Ts3Debugging.debug("[NETWORK] WRITE " + Ts3Debugging.getHex(packet.getBuffer().array()));
 
         socket.send(packet.getDatagram());
     }
