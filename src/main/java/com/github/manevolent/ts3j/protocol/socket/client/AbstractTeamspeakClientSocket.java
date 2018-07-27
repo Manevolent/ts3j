@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
+import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
@@ -36,9 +37,9 @@ public abstract class AbstractTeamspeakClientSocket
 
     private final Object connectionStateLock = new Object();
     private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
-    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new LinkedHashMap<>();
-    private final Map<String, Object> clientOptions = new LinkedHashMap<>();
-    private final Map<Integer, PacketResponse> sendQueue = new LinkedHashMap<>();
+    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
+    private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
+    private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
 
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
@@ -153,12 +154,12 @@ public abstract class AbstractTeamspeakClientSocket
     }
 
     /**
-     * Sends a command to the remote server.
+     * Sends a command to the remote.
      * @param command Command to send.
      * @return Command response object to track command response.
      * @throws IOException
      */
-    public CommandResponse sendCommand(Command command) throws IOException {
+    public CommandResponse sendCommand(Command command) throws IOException, TimeoutException {
         if (command.willExpectResponse() && !isConnected())
             throw new IOException("not connected");
 
@@ -175,8 +176,11 @@ public abstract class AbstractTeamspeakClientSocket
 
         response.setDispatchedTime(System.currentTimeMillis());
 
+        writePacket(new PacketBody2Command(ProtocolRole.CLIENT, command));
+
         return response;
     }
+
 
     @Override
     public void writePacket(PacketBody body) throws IOException, TimeoutException {
@@ -316,7 +320,7 @@ public abstract class AbstractTeamspeakClientSocket
 
         // Find if the packet must be acknowledged and create a promise for that action
         boolean willAcknowledge = packet.getHeader().getType().getAcknolwedgedBy() != null;
-        PacketResponse response;
+        final PacketResponse response;
 
         if (willAcknowledge)
             sendQueue.put(
@@ -342,15 +346,14 @@ public abstract class AbstractTeamspeakClientSocket
                     if (getState() == ClientConnectionState.DISCONNECTED)
                         throw new IllegalStateException("no longer connected");
 
-                    response.getFuture().get(1000L, TimeUnit.MILLISECONDS);
+                    // Wait one cycle for an ACK
+                    response.waitForAcknowledgement(1000);
                     break;
                 } catch (TimeoutException e) {
                     response.resend();
                 } catch (CancellationException e) {
                     throw e;
-                } catch (InterruptedException e) {
-
-                } catch (ExecutionException e) {
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -456,9 +459,11 @@ public abstract class AbstractTeamspeakClientSocket
             // Find if the packet is itself an acknowledgement
             switch (packet.getHeader().getType()) {
                 case ACK:
-                    int packetId = packet.getHeader().getPacketId();
+                    int packetId = ((PacketBody6Ack)packet.getBody()).getPacketId();
                     PacketResponse response = sendQueue.get(packetId);
-                    if (response != null) response.getFuture().complete(packet);
+                    if (response != null) {
+                        response.acknowledge(packet);
+                    }
                     break;
                 case ACK_LOW:
                     break;
@@ -578,9 +583,9 @@ public abstract class AbstractTeamspeakClientSocket
 
     private class PacketResponse {
         private final NetworkPacket sentPacket;
-        private final CompletableFuture future = new CompletableFuture<>();
+        private final CompletableFuture<Packet> future = new CompletableFuture<>();
         private long lastSent = 0L;
-        private int tries, maxTries;
+        private int tries = 1, maxTries;
         private boolean willResend;
 
         public PacketResponse(NetworkPacket sentPacket,int maxTries) {
@@ -596,8 +601,21 @@ public abstract class AbstractTeamspeakClientSocket
 
         public void resend() throws IOException {
             AbstractTeamspeakClientSocket.this.writeNetworkPacket(sentPacket);
-
+            setLastSent(System.currentTimeMillis());
             tries ++;
+        }
+
+        public boolean waitForAcknowledgement()
+                throws ExecutionException, InterruptedException {
+            Packet acknowledgement = future.get();
+            return acknowledgement != null;
+        }
+
+        public boolean waitForAcknowledgement(long millis)
+                throws TimeoutException, ExecutionException, InterruptedException {
+            Packet acknowledgement = future.get(millis, TimeUnit.MILLISECONDS);
+
+            return acknowledgement != null;
         }
 
         public boolean isWillResend() {
@@ -616,8 +634,8 @@ public abstract class AbstractTeamspeakClientSocket
             return lastSent;
         }
 
-        public CompletableFuture getFuture() {
-            return future;
+        public void acknowledge(Packet p) {
+            future.complete(p);
         }
 
         public void setLastSent(long lastSent) {

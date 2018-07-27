@@ -56,7 +56,6 @@ public final class Ts3Crypt {
     }
 
     public static Ts3Crypt.SecureChannelParameters cryptoInit2(byte[] license, byte[] alpha,
-                                                               byte[] omega, byte[] proof,
                                                                byte[] beta, byte[] privateKey) {
         // 3.2.2.2 Parsing the license
         List<License> licenses = License.readLicenses(ByteBuffer.wrap(license));

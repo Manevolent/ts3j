@@ -151,6 +151,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         } else if (packet.getBody() instanceof PacketBody2Command) {
             SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse();
 
+            Ts3Debugging.debug(command.build());
+
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
 
@@ -160,9 +162,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     throw new IllegalArgumentException("ot constant != 1: " + command.get("ot").getValue());
 
                 byte[] license = Base64.getDecoder().decode(command.get("l").getValue());
-                byte[] licsense_validation = !command.has("tvd") ?
+                /*byte[] licsense_validation = !command.has("tvd") && command.get("tvd").getValue() != null ?
                         null :
-                        Base64.getDecoder().decode(command.get("tvd").getValue());
+                        Base64.getDecoder().decode(command.get("tvd").getValue());*/
 
                 byte[] beta = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
                 byte[] omega = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
@@ -187,29 +189,19 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                 Ts3Debugging.debug("Sending clientek...");
 
-                PacketBody2Command clientek = new PacketBody2Command(ProtocolRole.CLIENT);
-                clientek.setText(
+                getClient().sendCommand(
                         new SimpleCommand(
                                 "clientek", ProtocolRole.CLIENT,
                                 new CommandSingleParameter("ek", Base64.getEncoder().encodeToString(keyPair.getKey())),
                                 new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(signature))
-                        ).build()
+                        )
                 );
 
-                Ts3Debugging.debug(clientek.getText());
-
-                getClient().writePacket(clientek);
-
-                getClient().setSecureParameters(
-                        Ts3Crypt.cryptoInit2(license, alphaBytes, omega, proof, beta, keyPair.getValue())
-                );
+                getClient().setSecureParameters(Ts3Crypt.cryptoInit2(license, alphaBytes, beta, keyPair.getValue()));
 
                 Ts3Debugging.debug("Sending clientinit...");
 
-                PacketBody2Command clientinit = new PacketBody2Command(ProtocolRole.CLIENT);
-
-                clientinit.setText(
-                        new SimpleCommand(
+                getClient().sendCommand(new SimpleCommand(
                                 "clientinit",
                                 ProtocolRole.CLIENT,
                                 new CommandSingleParameter("client_nickname", "test"),
@@ -235,12 +227,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                                         "hwid",
                                         "+LyYqbDqOvJJpN5pdAbF8/v5kZ0="
                                 )
-                        ).build()
+                        )
                 );
-
-                Ts3Debugging.debug(clientinit.getText());
-
-                getClient().writePacket(clientinit);
             }
         }
     }

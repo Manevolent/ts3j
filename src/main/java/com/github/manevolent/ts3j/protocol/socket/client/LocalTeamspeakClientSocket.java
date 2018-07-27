@@ -102,7 +102,7 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
             setGenerationId(0);
 
             setOption("client.hostname", remote.getHostString());
-            setOption("client.password", password);
+            //setOption("client.password", password);
 
             socket.connect(remote);
 
