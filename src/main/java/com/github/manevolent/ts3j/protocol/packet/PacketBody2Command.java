@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.protocol.packet;
 
 import com.github.manevolent.ts3j.command.Command;
+import com.github.manevolent.ts3j.command.ComplexCommand;
 import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
@@ -28,8 +29,8 @@ public class PacketBody2Command extends PacketBody {
         return text;
     }
 
-    public SimpleCommand parse() {
-        return SimpleCommand.parse(getRole(), getText());
+    public ComplexCommand parse() {
+        return ComplexCommand.parse(getRole(), getText());
     }
 
     public void setText(String text) {

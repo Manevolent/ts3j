@@ -64,31 +64,6 @@ public class SimpleCommand implements Command {
     }
 
     public static SimpleCommand parse(ProtocolRole role, String commandText) {
-        String[] commandParts = commandText.split(" ");
-
-        String commandLabel = commandParts[0].toLowerCase();
-
-        List<CommandParameter> parameterList = new LinkedList<>();
-
-        for (int i = 1; i < commandParts.length; i ++) {
-            String commandParamText = commandParts[i].trim();
-            if (commandParamText.length() <= 0) continue;
-
-            if (commandParamText.startsWith("-")) { // Option
-                parameterList.add(new CommandOption(commandParamText.substring(1)));
-            } else {
-                String[] commandParamParts = commandParamText.split("=", 2);
-
-                parameterList.add(new CommandSingleParameter(
-                                commandParamParts[0].toLowerCase(),
-                                commandParamParts.length > 1 ?
-                                        Ts3String.unescape(commandParamParts[1]) :
-                                        null
-                        )
-                );
-            }
-        }
-
-        return new SimpleCommand(commandLabel, role, parameterList);
+        return ComplexCommand.parse(role, commandText).simplify();
     }
 }

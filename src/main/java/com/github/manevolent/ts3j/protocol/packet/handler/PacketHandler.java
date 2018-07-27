@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet.handler;
 
+import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.socket.client.TeamspeakClientSocket;
 
@@ -22,6 +23,10 @@ public abstract class PacketHandler {
     }
 
     public void handlePacket(Packet packet) throws IOException, TimeoutException {
+
+    }
+
+    public void handleCommand(Command command) {
 
     }
 

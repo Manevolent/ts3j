@@ -141,7 +141,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getBody() instanceof PacketBody2Command) {
-            SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse();
+            SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplify();
 
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
@@ -228,7 +228,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                         )
                 );
 
-                getClient().setState(ClientConnectionState.CONNECTED);
+                getClient().setState(ClientConnectionState.RETRIEVING_DATA);
             } else if (command.getName().equals("error")) {
                 getClient().setState(ClientConnectionState.DISCONNECTED);
 

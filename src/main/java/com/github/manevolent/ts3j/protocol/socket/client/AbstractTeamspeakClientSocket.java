@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.protocol.socket.client;
 
 import com.github.manevolent.ts3j.command.Command;
+import com.github.manevolent.ts3j.command.CommandProcessor;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
@@ -40,6 +41,8 @@ public abstract class AbstractTeamspeakClientSocket
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
     private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
+
+    private CommandProcessor commandProcessor;
 
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
@@ -549,6 +552,14 @@ public abstract class AbstractTeamspeakClientSocket
 
     public void setNickname(String name) {
         setOption("client.nickname", name);
+    }
+
+    public CommandProcessor getCommandProcessor() {
+        return commandProcessor;
+    }
+
+    public void setCommandProcessor(CommandProcessor commandProcessor) {
+        this.commandProcessor = commandProcessor;
     }
 
     private class NetworkHandler implements Runnable {
