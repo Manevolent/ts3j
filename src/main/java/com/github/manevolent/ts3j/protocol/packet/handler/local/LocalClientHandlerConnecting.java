@@ -143,12 +143,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         } else if (packet.getBody() instanceof PacketBody2Command) {
             SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse();
 
-            Ts3Debugging.debug(command.build());
-
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
-
-                Ts3Debugging.debug(command.build());
 
                 if (!command.get("ot").getValue().equals("1"))
                     throw new IllegalArgumentException("ot constant != 1: " + command.get("ot").getValue());
@@ -231,6 +227,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                                 )
                         )
                 );
+
+                getClient().setState(ClientConnectionState.CONNECTED);
             } else if (command.getName().equals("error")) {
                 getClient().setState(ClientConnectionState.DISCONNECTED);
 
