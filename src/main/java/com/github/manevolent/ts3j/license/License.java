@@ -219,8 +219,6 @@ public class License {
         byte[] final_ = new byte[32];
         GroupOperations.ge_p3_tobytes(final_, 0, r2);
 
-        //final_[1] ^= 0x80;
-
         return final_;
     }
 

@@ -10,20 +10,19 @@ import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
 
-public class ServerConnectionTest extends TestCase {
-    public ServerConnectionTest() {
-        super("ServerConnectionTest");
-    }
+import static org.junit.Assert.assertEquals;
 
-    public void testParser() throws Exception {
+public class ServerConnectionTest  {
+    public static void main(String[] args) throws Exception {
         try {
-            LocalIdentity localIdentity = LocalIdentity.load(
+            /**LocalIdentity localIdentity = LocalIdentity.load(
                     Ts3Crypt.decodePublicKey(Base64.getDecoder()
                             .decode("MEsDAgcAAgEgAiBpPRbTliVt9KxtIz8saYdwcnNgcwaKLbKYSpDNO87u9gIgSWWPKcSJ9P6VZKJfRdpWwcfMdJv+NA9/hXUtz1uwRVI=")),
                     new BigInteger(Base64.getDecoder().decode("Tj6YXM3qyRv8n25L2pH+OEJnRUl4auQf8+znjYrOmWU=")),
                     2294,
                     2295
-            );
+            );**/
+            LocalIdentity localIdentity = LocalIdentity.generateNew(10);
 
             LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
 
@@ -40,9 +39,5 @@ public class ServerConnectionTest extends TestCase {
         } catch (Throwable ex) {
             ex.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) throws Exception {
-        new ServerConnectionTest().testParser();
     }
 }

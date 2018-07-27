@@ -217,21 +217,21 @@ public final class Ts3Crypt {
     public static Pair<byte[], byte[]> generateKeypair() {
         byte[] privateKey = new byte[32];
         new SecureRandom().nextBytes(privateKey);
+        return generateKeypair(privateKey);
+    }
 
+    public static Pair<byte[], byte[]> generateKeypair(byte[] privateKey) {
         ScalarOperations.sc_clamp(privateKey, 0);
 
         GroupElementP3 A = new GroupElementP3();
         GroupOperations.ge_scalarmult_base(A, privateKey, 0);
 
         byte[] publicKey = new byte[32];
-        GroupOperations.ge_p3_tobytes(publicKey, 0, A);
-
-        Ts3Debugging.debug(publicKey);
-        Ts3Debugging.debug(privateKey);
+        GroupOperations.ge_p3_tobytes_negate(publicKey, 0, A);
 
         return new Pair<>(publicKey, privateKey);
     }
-    
+
     public static final class SecureChannelParameters {
         private final byte[] fakeSignature;
         private final byte[] ivStruct;

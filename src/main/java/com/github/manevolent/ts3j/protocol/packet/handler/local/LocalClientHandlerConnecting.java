@@ -91,7 +91,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     // CITE: https://github.com/Splamy/TS3AudioBot/blob/master/TS3Client/Full/Ts3Crypt.cs
                     // Prepare solution
                     if (serverReplyStep3.getLevel() < 0 || serverReplyStep3.getLevel() > 1_000_000)
-                        throw new IllegalArgumentException("RSA challange level is not within an acceptable range");
+                        throw new IllegalArgumentException("RSA challenge level is not within an acceptable range");
 
                     BigInteger x = new BigInteger(1, serverReplyStep3.getX());
                     BigInteger n = new BigInteger(1, serverReplyStep3.getN());

@@ -13,6 +13,7 @@ import javafx.util.Pair;
 import junit.framework.TestCase;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Base64;
 
 public class EncryptionTest extends TestCase {
@@ -51,8 +52,7 @@ public class EncryptionTest extends TestCase {
         packet.setBody(new PacketBody2Command(ProtocolRole.CLIENT, "clientinit client_nickname=TestClient client_version=3.1.8\\s[Build:\\s1516614607] client_platform=Windows client_input_hardware=1 client_output_hardware=1 client_default_channel= client_default_channel_password= client_server_password=QL0AFWMIX8NRZTKeof9cXsvbvu8= client_meta_data= client_version_sign=gDEgQf\\/BiOQZdAheKccM1XWcMUj2OUQqt75oFuvF2c0MQMXyv88cZQdUuckKbcBRp7RpmLInto4PIgd7mPO7BQ== client_key_offset=6199 client_nickname_phonetic= client_default_token= hwid=+LyYqbDqOvJJpN5pdAbF8\\/v5kZ0="));
 
         byte[] packetBytes = transformation.encrypt(packet).array();
-
-        Ts3Debugging.debug(Base64.getEncoder().encode(packetBytes));
+        transformation.decrypt(header, ByteBuffer.wrap(packetBytes), packet.getBody().getSize());
     }
 
 }

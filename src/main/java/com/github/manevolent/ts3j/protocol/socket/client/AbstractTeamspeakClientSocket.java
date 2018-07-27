@@ -10,15 +10,13 @@ import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
-import com.github.manevolent.ts3j.protocol.packet.PacketBody;
-import com.github.manevolent.ts3j.protocol.packet.PacketBody6Ack;
-import com.github.manevolent.ts3j.protocol.packet.PacketBodyFragment;
-import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
+import com.github.manevolent.ts3j.protocol.packet.*;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
 import com.github.manevolent.ts3j.protocol.packet.handler.local.LocalClientHandler;
 import com.github.manevolent.ts3j.protocol.packet.transformation.DefaultPacketTransformation;
 import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
+import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
@@ -213,7 +211,7 @@ public abstract class AbstractTeamspeakClientSocket
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
-        if (packet.getHeader().getType() != PacketBodyType.INIT1) {
+        if (packet.getHeader().getType() != PacketBodyType.INIT1 && packet.getHeader().getType() != PacketBodyType.ACK) {
             packetId++;
             packetId = packetId & 0x0000FFFF;
 
@@ -226,19 +224,34 @@ public abstract class AbstractTeamspeakClientSocket
             packet.getHeader().setPacketId(packetId);
         }
 
-        if (packet.getHeader().getType() == PacketBodyType.COMMAND ||
-                packet.getHeader().getType() == PacketBodyType.COMMAND_LOW)
-            packet.getHeader().setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+        switch (packet.getHeader().getType()) {
+            case INIT1:
+                packet.getHeader().setPacketFlag(HeaderFlag.UNENCRYPTED, true);
+                packet.getHeader().setPacketId((short)101);
+                break;
+            case COMMAND:
+            case COMMAND_LOW:
+                packet.getHeader().setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+                break;
+        }
 
         if (packet.getSize() > 500) {
-            if (!packet.getHeader().getType().isSplittable())
-                throw new IllegalArgumentException("packet too large: " + packet.getSize());
-
-            // Split
             int totalSize = packet.getBody().getSize();
 
             ByteBuffer outputBuffer = ByteBuffer.allocate(totalSize);
             packet.getBody().write(outputBuffer);
+
+            byte[] compressed = QuickLZ.compress(outputBuffer.array(), 1);
+            packet.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
+            packet.setBody(new PacketBodyCompressed(packet.getHeader().getType(), packet.getRole(), compressed));
+
+            if (packet.getSize() <= 500) {
+                writePacketIntl(packet);
+                return;
+            }
+
+            if (!packet.getHeader().getType().isSplittable())
+                throw new IllegalArgumentException("packet too large: " + packet.getSize());
 
             for (int offs = 0; offs < totalSize;) {
                 int flush = Math.min(500 - packet.getHeader().getSize(), totalSize - offs);
@@ -391,22 +404,31 @@ public abstract class AbstractTeamspeakClientSocket
         if (fragment) {
             Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name() + " fragment");
 
-            packet.setBody(
-                    new PacketBodyFragment(
-                            networkPacket.getHeader().getType(),
-                            getRole().getIn()
-                    )
-            );
+            packet.setBody(new PacketBodyFragment(networkPacket.getHeader().getType(), getRole().getIn()));
         } else {
+            if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
+                packet.setBody(new PacketBodyCompressed(networkPacket.getHeader().getType(), getRole().getIn()));
+
             Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
         }
 
-        // Compression?
-        // TODO
-
-        // Read packet body
+        // Read raw packet body
         packet.readBody(packetBuffer);
 
+        // Finally, handle compressed bodies
+        if (packet.getBody() instanceof PacketBodyCompressed) {
+            byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
+
+            packetBuffer = ByteBuffer.wrap(decompressed);
+
+            packet = new Packet(packet.getRole(), packet.getHeader());
+
+            packet.readBody(packetBuffer);
+
+            Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
+        }
+
+        // Return to parent handler
         return packet;
     }
 

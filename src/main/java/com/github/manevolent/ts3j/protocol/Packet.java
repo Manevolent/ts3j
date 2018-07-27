@@ -20,6 +20,13 @@ public final class Packet {
         this.role = role;
     }
 
+    public Packet(ProtocolRole role, PacketHeader header) {
+        if (role == null) throw new NullPointerException("role");
+
+        this.role = role;
+        this.header = header;
+    }
+
     public ProtocolRole getRole() {
         return role;
     }

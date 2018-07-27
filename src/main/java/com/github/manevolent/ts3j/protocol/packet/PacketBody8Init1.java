@@ -19,12 +19,6 @@ public class PacketBody8Init1 extends PacketBody {
         super(INIT1, role);
     }
 
-    @Override
-    public void setHeaderValues(PacketHeader header) {
-        header.setPacketFlag(HeaderFlag.UNENCRYPTED, true);
-        header.setPacketId((short)101);
-    }
-
     public byte[] getVersion() {
         return version;
     }

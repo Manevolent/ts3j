@@ -115,7 +115,6 @@ public class Identity {
         return getLeadingZeroBits(outHash);
     }
 
-    // GOOD
     private static int getLeadingZeroBits(byte[] data) {
         int curr = 0;
         int i ;

@@ -104,6 +104,9 @@ public class PacketTransformation {
 
         ByteBuffer outputBuffer = ByteBuffer.allocate(MAC_LEN + headerWithoutMac.length + (len - MAC_LEN));
 
+        // Copy the mac to the packet header
+        System.arraycopy(result, len - MAC_LEN, packet.getHeader().getMac(), 0, MAC_LEN);
+
         // MAC
         outputBuffer.put(result, len - MAC_LEN, MAC_LEN);
 
