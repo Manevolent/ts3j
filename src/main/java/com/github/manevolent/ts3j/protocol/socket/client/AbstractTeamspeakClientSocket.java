@@ -2,6 +2,7 @@ package com.github.manevolent.ts3j.protocol.socket.client;
 
 import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.command.CommandProcessor;
+import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
@@ -21,6 +22,7 @@ import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
 import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
+import javafx.util.Pair;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -41,6 +43,7 @@ public abstract class AbstractTeamspeakClientSocket
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
     private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, PacketCounter> sendCounter = new ConcurrentHashMap<>();
 
     private CommandProcessor commandProcessor;
 
@@ -52,6 +55,7 @@ public abstract class AbstractTeamspeakClientSocket
     private int generationId = 0;
     private int clientId = 0;
     private int packetId = 0;
+    private int commandReturnCode = 0;
 
     private final NetworkReader networkReader = new NetworkReader();
     private final NetworkHandler networkHandler = new NetworkHandler();
@@ -73,6 +77,13 @@ public abstract class AbstractTeamspeakClientSocket
         for (PacketBodyType bodyType : PacketBodyType.values())
             if (bodyType.isSplittable())
                 reassemblyQueue.put(bodyType, new Reassembly());
+
+        // Initialize counters
+        for (PacketBodyType bodyType : PacketBodyType.values())
+            if (bodyType == PacketBodyType.INIT1)
+                sendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
+            else
+                sendCounter.put(bodyType, new PacketCounterFull());
     }
 
     protected void start() {
@@ -169,13 +180,12 @@ public abstract class AbstractTeamspeakClientSocket
         CommandResponse response;
 
         if (command.willExpectResponse()) {
-            //command.appendParameter(new CommandSingleParameter("return_code", returnCodeIndex));
-            response = new CommandResponse(command, 0); // TODO
+            int returnCode = commandReturnCode++;
+            response = new CommandResponse(command, returnCode++);
+            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
         } else {
             response = new CommandResponse(command, -1);
         }
-
-        String commandString = command.toString();
 
         response.setDispatchedTime(System.currentTimeMillis());
 
@@ -218,18 +228,12 @@ public abstract class AbstractTeamspeakClientSocket
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
-        if (packet.getHeader().getType() != PacketBodyType.INIT1 && packet.getHeader().getType() != PacketBodyType.ACK) {
-            packetId++;
-            packetId = packetId & 0x0000FFFF;
+        Pair<Integer, Integer> counterResult = sendCounter.get(packet.getHeader().getType()).next();
+        if (packet.getHeader() instanceof ClientPacketHeader)
+            ((ClientPacketHeader) packet.getHeader()).setClientId(clientId);
 
-            if (packetId == 0) generationId++;
-
-            if (packet.getHeader() instanceof ClientPacketHeader)
-                ((ClientPacketHeader) packet.getHeader()).setClientId(clientId);
-
-            packet.getHeader().setGeneration(generationId);
-            packet.getHeader().setPacketId(packetId);
-        }
+        packet.getHeader().setPacketId(counterResult.getKey());
+        packet.getHeader().setGeneration(counterResult.getValue());
 
         switch (packet.getHeader().getType()) {
             case INIT1:
@@ -248,17 +252,19 @@ public abstract class AbstractTeamspeakClientSocket
             ByteBuffer outputBuffer = ByteBuffer.allocate(totalSize);
             packet.getBody().write(outputBuffer);
 
-            byte[] compressed = QuickLZ.compress(outputBuffer.array(), 1);
-            packet.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
-            packet.setBody(new PacketBodyCompressed(packet.getHeader().getType(), packet.getRole(), compressed));
+            if (packet.getHeader().getType().isCompressible()) {
+                byte[] compressed = QuickLZ.compress(outputBuffer.array(), 1);
+                packet.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
+                packet.setBody(new PacketBodyCompressed(packet.getHeader().getType(), packet.getRole(), compressed));
 
-            if (packet.getSize() <= 500) {
-                writePacketIntl(packet);
-                return;
+                if (packet.getSize() <= 500) {
+                    writePacketIntl(packet);
+                    return;
+                }
             }
 
             if (!packet.getHeader().getType().isSplittable())
-                throw new IllegalArgumentException("packet too large: " + packet.getSize());
+                throw new IllegalArgumentException("packet too large: " + packet.getSize() + " (cannot split)");
 
             for (int offs = 0; offs < totalSize;) {
                 int flush = Math.min(500 - packet.getHeader().getSize(), totalSize - offs);
@@ -367,9 +373,7 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
-    private Packet readPacketIntl() throws IOException {
-        NetworkPacket networkPacket = readNetworkPacket();
-
+    private Packet readPacketIntl(NetworkPacket networkPacket) throws IOException {
         if (networkPacket.getHeader() == null) throw new NullPointerException("header");
 
         Packet packet = new Packet(networkPacket.getHeader().getRole());
@@ -386,7 +390,7 @@ public abstract class AbstractTeamspeakClientSocket
                 networkPacket.getHeader().getType().canEncrypt();
 
         if (networkPacket.getHeader().getType().mustEncrypt() && !encrypted)
-            throw new IllegalArgumentException("packet is unencrypted, but must encrypt");
+            throw new IllegalArgumentException("packet is unencrypted, but must be encrypted");
 
         ByteBuffer packetBuffer =
                 (ByteBuffer) networkPacket.getBuffer().position(networkPacket.getHeader().getSize());
@@ -437,7 +441,7 @@ public abstract class AbstractTeamspeakClientSocket
     @Override
     public Packet readPacket() throws IOException, TimeoutException {
         while (isReading()) {
-            Packet packet = readPacketIntl();
+            Packet packet = readPacketIntl(readNetworkPacket());
 
             // Find if the packet must be acknowledged
             PacketBodyType ackType = packet.getHeader().getType().getAcknolwedgedBy();
@@ -446,6 +450,12 @@ public abstract class AbstractTeamspeakClientSocket
                     case ACK:
                         writePacket(new PacketBody6Ack(getRole().getOut(), packet.getHeader().getPacketId()));
                         break;
+                    case ACK_LOW:
+                        writePacket(new PacketBody7AckLow(getRole().getOut(), packet.getHeader().getPacketId()));
+                        break;
+                    case PONG:
+                        writePacket(new PacketBody5Pong(getRole().getOut(), packet.getHeader().getPacketId()));
+                        continue; // Don't pass pings to the parent
                 }
             }
 
@@ -456,18 +466,26 @@ public abstract class AbstractTeamspeakClientSocket
             }
 
             // Find if the packet is itself an acknowledgement
+            boolean handle;
+            PacketResponse response;
             switch (packet.getHeader().getType()) {
                 case ACK:
-                    int packetId = ((PacketBody6Ack)packet.getBody()).getPacketId();
-                    PacketResponse response = sendQueue.get(packetId);
-                    if (response != null) {
-                        response.acknowledge(packet);
-                    }
+                    response = sendQueue.get(((PacketBody6Ack)packet.getBody()).getPacketId());
+                    handle = false;
                     break;
                 case ACK_LOW:
+                    response = sendQueue.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
+                    handle = false;
                     break;
                 default:
-                    return packet;
+                    handle = true;
+                    response = null;
+            }
+
+            if (response != null) {
+                response.acknowledge(packet);
+            } else if (handle) {
+                return packet;
             }
         }
 
@@ -672,6 +690,51 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
+    private interface PacketCounter {
+        Pair<Integer, Integer> next();
+        int getGenerationId();
+    }
+
+    private class PacketCounterZero implements PacketCounter {
+        @Override
+        public Pair<Integer, Integer> next() {
+            return new Pair<>(0,0);
+        }
+
+        @Override
+        public int getGenerationId() {
+            return 0;
+        }
+    }
+
+    private class PacketCounterFull implements PacketCounter {
+        private final Object sendLock = new Object();
+        private int packetId = 0;
+        private int generationId = 0;
+
+        public int getPacketId() {
+            return packetId;
+        }
+
+        public int getGenerationId() {
+            return generationId;
+        }
+
+        @Override
+        public Pair<Integer, Integer> next() {
+            synchronized (sendLock) {
+                packetId++;
+
+                if (packetId >= 65536) {
+                    packetId = 0;
+                    generationId++;
+                }
+
+                return new Pair<>(packetId, generationId);
+            }
+        }
+    }
+
     private class Reassembly {
         private final Map<Integer, Packet> queue = new LinkedHashMap<>();
         private boolean state = false;
@@ -698,16 +761,21 @@ public abstract class AbstractTeamspeakClientSocket
             int totalLength = reassemblyList.stream().mapToInt(x -> x.getBody().getSize()).sum() + lastFragment.getBody().getSize();
             if (totalLength < 0) throw new IllegalArgumentException("reassembly too small: " + totalLength);
 
+            Packet firstPacket = reassemblyList.get(0);
+            Packet reassembledPacket = new Packet(firstPacket.getRole());
+            reassembledPacket.setHeader(firstPacket.getHeader());
+
             ByteBuffer reassemblyBuffer = ByteBuffer.allocate(totalLength);
+
+            reassembledPacket.getHeader().setPacketFlag(HeaderFlag.FRAGMENTED, false);
 
             for (Packet old : reassemblyList)
                 old.writeBody(reassemblyBuffer);
 
-            Packet firstPacket = reassemblyList.get(0);
-            Packet reassembledPacket = new Packet(firstPacket.getRole());
-            reassembledPacket.setHeader(firstPacket.getHeader());
-            reassembledPacket.getHeader().setPacketFlag(HeaderFlag.FRAGMENTED, false);
-            reassembledPacket.readBody((ByteBuffer) reassemblyBuffer.position(0));
+            if (firstPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
+                reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array()));
+
+            reassembledPacket.readBody(reassemblyBuffer);
 
             return reassembledPacket;
         }

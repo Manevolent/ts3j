@@ -29,6 +29,8 @@ public interface Command {
      */
     default boolean willExpectResponse() { return false; }
 
+    void add(CommandParameter parameter);
+
     /**
      * Builds the command to a netowrk-issueable string.
      * The implementation currently defaults to the basic command format for TS3:

@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.command.CommandProcessor;
 import com.github.manevolent.ts3j.command.ComplexCommand;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody3CommandLow;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 
 import java.io.IOException;
@@ -22,11 +23,27 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
 
     @Override
     public void handlePacket(Packet packet) throws IOException, TimeoutException {
-        if (packet.getBody() instanceof PacketBody2Command)
-            try {
-                handleCommand(ComplexCommand.parse(packet.getRole(), ((PacketBody2Command) packet.getBody()).getText()));
-            } catch (CommandProcessException e) {
-                throw new IOException(e);
-            }
+        switch (packet.getBody().getType()) {
+            case COMMAND:
+                try {
+                    handleCommand(ComplexCommand.parse(
+                            packet.getRole(),
+                            ((PacketBody2Command) packet.getBody()).getText()
+                    ));
+                } catch (CommandProcessException e) {
+                    throw new IOException(e);
+                }
+                break;
+            case COMMAND_LOW:
+                try {
+                    handleCommand(ComplexCommand.parse(
+                            packet.getRole(),
+                            ((PacketBody3CommandLow) packet.getBody()).getText()
+                    ));
+                } catch (CommandProcessException e) {
+                    throw new IOException(e);
+                }
+                break;
+        }
     }
 }

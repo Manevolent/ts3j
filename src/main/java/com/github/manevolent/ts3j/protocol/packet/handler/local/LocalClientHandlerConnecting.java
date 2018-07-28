@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.protocol.packet.handler.local;
 
+import com.github.manevolent.ts3j.command.CommandHandler;
 import com.github.manevolent.ts3j.command.SimpleCommand;
 import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
 import com.github.manevolent.ts3j.protocol.Packet;
@@ -228,6 +229,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                         )
                 );
 
+                getClient().setCommandProcessor(CommandHandler.createLocalClient());
                 getClient().setState(ClientConnectionState.RETRIEVING_DATA);
             } else if (command.getName().equals("error")) {
                 getClient().setState(ClientConnectionState.DISCONNECTED);

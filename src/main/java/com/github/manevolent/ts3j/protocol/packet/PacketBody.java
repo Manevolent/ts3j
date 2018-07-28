@@ -29,7 +29,7 @@ public abstract class PacketBody {
     public abstract int getSize();
 
     public void setHeaderValues(PacketHeader header) {
-        // Do nothing
+
     }
 
     /**
