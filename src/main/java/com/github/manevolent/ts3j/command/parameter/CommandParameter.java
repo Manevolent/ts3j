@@ -1,4 +1,4 @@
-package com.github.manevolent.ts3j.command.part;
+package com.github.manevolent.ts3j.command.parameter;
 
 import java.util.Base64;
 

@@ -2,11 +2,12 @@ package com.github.manevolent.ts3j.protocol.packet.handler.local;
 
 import com.github.manevolent.ts3j.command.CommandProcessException;
 import com.github.manevolent.ts3j.command.CommandProcessor;
-import com.github.manevolent.ts3j.command.ComplexCommand;
+import com.github.manevolent.ts3j.command.MultiCommand;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody3CommandLow;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
@@ -16,7 +17,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
         super(client);
     }
 
-    protected void handleCommand(ComplexCommand command) throws CommandProcessException {
+    protected void handleCommand(MultiCommand command) throws CommandProcessException {
         CommandProcessor processor = getClient().getCommandProcessor();
         if (processor != null) processor.process(getClient(), command);
     }
@@ -25,8 +26,9 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
     public void handlePacket(Packet packet) throws IOException, TimeoutException {
         switch (packet.getBody().getType()) {
             case COMMAND:
+                Ts3Debugging.debug(((PacketBody2Command) packet.getBody()).getText());
                 try {
-                    handleCommand(ComplexCommand.parse(
+                    handleCommand(MultiCommand.parse(
                             packet.getRole(),
                             ((PacketBody2Command) packet.getBody()).getText()
                     ));
@@ -36,7 +38,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                 break;
             case COMMAND_LOW:
                 try {
-                    handleCommand(ComplexCommand.parse(
+                    handleCommand(MultiCommand.parse(
                             packet.getRole(),
                             ((PacketBody3CommandLow) packet.getBody()).getText()
                     ));

@@ -1,27 +1,24 @@
 package com.github.manevolent.ts3j;
 
 import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.model.Channel;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 import junit.framework.TestCase;
 
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
 public class ServerConnectionTest  {
     public static void main(String[] args) throws Exception {
         try {
-            /**LocalIdentity localIdentity = LocalIdentity.load(
-                    Ts3Crypt.decodePublicKey(Base64.getDecoder()
-                            .decode("MEsDAgcAAgEgAiBpPRbTliVt9KxtIz8saYdwcnNgcwaKLbKYSpDNO87u9gIgSWWPKcSJ9P6VZKJfRdpWwcfMdJv+NA9/hXUtz1uwRVI=")),
-                    new BigInteger(Base64.getDecoder().decode("Tj6YXM3qyRv8n25L2pH+OEJnRUl4auQf8+znjYrOmWU=")),
-                    2294,
-                    2295
-            );**/
             LocalIdentity localIdentity = LocalIdentity.generateNew(10);
 
             LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
@@ -40,6 +37,13 @@ public class ServerConnectionTest  {
             );
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
+
+            Ts3Debugging.info("Connected to " + client.getVirtualServer().getName() + ".");
+            Ts3Debugging.info(" Client name: " + client.getSelf().getNickname());
+            Ts3Debugging.info(" Channels: " +
+                    client.getVirtualServer().getChannelsOrderd()
+                    .stream().map(Channel::getName).collect(Collectors.toList())
+            );
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

@@ -1,6 +1,6 @@
 package com.github.manevolent.ts3j.command;
 
-import com.github.manevolent.ts3j.command.part.CommandParameter;
+import com.github.manevolent.ts3j.command.parameter.CommandParameter;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
 public interface Command {

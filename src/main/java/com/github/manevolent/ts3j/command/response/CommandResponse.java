@@ -1,7 +1,7 @@
 package com.github.manevolent.ts3j.command.response;
 
 import com.github.manevolent.ts3j.command.Command;
-import com.github.manevolent.ts3j.command.ComplexCommand;
+import com.github.manevolent.ts3j.command.MultiCommand;
 
 import java.util.concurrent.TimeoutException;
 
@@ -11,7 +11,7 @@ public class CommandResponse {
     private final int returnCode;
 
     private long dispatchedTime;
-    private ComplexCommand returnedCommand;
+    private MultiCommand returnedCommand;
 
     public CommandResponse(Command command, int returnCode) {
         this.command = command;
@@ -26,12 +26,12 @@ public class CommandResponse {
         return returnCode;
     }
 
-    public ComplexCommand getResponse()
+    public MultiCommand getResponse()
             throws InterruptedException, TimeoutException {
         return getResponse(Integer.MAX_VALUE);
     }
 
-    public ComplexCommand getResponse(int millis)
+    public MultiCommand getResponse(int millis)
             throws InterruptedException, TimeoutException {
         if (returnCode < 0) return null;
 
@@ -59,11 +59,11 @@ public class CommandResponse {
         this.dispatchedTime = dispatchedTime;
     }
 
-    public ComplexCommand getReturnedCommand() {
+    public MultiCommand getReturnedCommand() {
         return returnedCommand;
     }
 
-    public void setReturnedCommand(ComplexCommand returnedCommand) {
+    public void setReturnedCommand(MultiCommand returnedCommand) {
         synchronized (returnLock) {
             if (this.returnCode < 0 ) throw new IllegalArgumentException("not expecting return command");
             if (this.returnedCommand != null) throw new IllegalArgumentException("already set return command");

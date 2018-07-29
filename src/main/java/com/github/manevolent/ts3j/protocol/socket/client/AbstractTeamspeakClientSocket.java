@@ -2,9 +2,11 @@ package com.github.manevolent.ts3j.protocol.socket.client;
 
 import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.command.CommandProcessor;
-import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
+import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.identity.Identity;
+import com.github.manevolent.ts3j.model.Client;
+import com.github.manevolent.ts3j.model.VirtualServer;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
@@ -43,9 +45,12 @@ public abstract class AbstractTeamspeakClientSocket
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
     private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
-    private final Map<PacketBodyType, PacketCounter> sendCounter = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, PacketCounter> localSendCounter = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, PacketCounter> remoteSendCounter = new ConcurrentHashMap<>();
 
     private CommandProcessor commandProcessor;
+
+    private VirtualServer virtualServer;
 
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
@@ -80,10 +85,13 @@ public abstract class AbstractTeamspeakClientSocket
 
         // Initialize counters
         for (PacketBodyType bodyType : PacketBodyType.values())
-            if (bodyType == PacketBodyType.INIT1)
-                sendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
-            else
-                sendCounter.put(bodyType, new PacketCounterFull());
+            if (bodyType == PacketBodyType.INIT1) {
+                localSendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
+                remoteSendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
+            } else {
+                localSendCounter.put(bodyType, new PacketCounterFull());
+                remoteSendCounter.put(bodyType, new PacketCounterFull(-1));
+            }
     }
 
     protected void start() {
@@ -228,7 +236,7 @@ public abstract class AbstractTeamspeakClientSocket
         // Set header values
         packet.getBody().setHeaderValues(packet.getHeader());
 
-        Pair<Integer, Integer> counterResult = sendCounter.get(packet.getHeader().getType()).next();
+        Pair<Integer, Integer> counterResult = localSendCounter.get(packet.getHeader().getType()).next();
         if (packet.getHeader() instanceof ClientPacketHeader)
             ((ClientPacketHeader) packet.getHeader()).setClientId(clientId);
 
@@ -460,10 +468,21 @@ public abstract class AbstractTeamspeakClientSocket
             }
 
             // Find if the packet must be reassembled
-            if (packet.getBody() instanceof PacketBodyFragment) {
+            if (packet.getHeader().getType().isSplittable()) {
                 packet = reassemblyQueue.get(packet.getHeader().getType()).put(packet);
                 if (packet == null) continue;
             }
+
+            if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1)
+                // Find if we already acknowledged this packet
+                if (!remoteSendCounter
+                        .get(packet.getHeader().getType())
+                        .setPacketId(packet.getHeader().getPacketId())) {
+                    Ts3Debugging.debug("[PROTOCOL] Ignoring handling resent packet: " +
+                            packet.getHeader().getType().name() + " id=" +
+                            packet.getHeader().getPacketId());
+                    continue; // Drop the packet
+                }
 
             // Find if the packet is itself an acknowledgement
             boolean handle;
@@ -580,6 +599,18 @@ public abstract class AbstractTeamspeakClientSocket
         this.commandProcessor = commandProcessor;
     }
 
+    public VirtualServer getVirtualServer() {
+        return virtualServer;
+    }
+
+    public void setVirtualServer(VirtualServer virtualServer) {
+        this.virtualServer = virtualServer;
+    }
+
+    public Client getSelf() {
+        return virtualServer.getClientById(clientId);
+    }
+
     private class NetworkHandler implements Runnable {
         @Override
         public void run() {
@@ -692,6 +723,8 @@ public abstract class AbstractTeamspeakClientSocket
 
     private interface PacketCounter {
         Pair<Integer, Integer> next();
+        int getPacketId();
+        boolean setPacketId(int packetId);
         int getGenerationId();
     }
 
@@ -699,6 +732,16 @@ public abstract class AbstractTeamspeakClientSocket
         @Override
         public Pair<Integer, Integer> next() {
             return new Pair<>(0,0);
+        }
+
+        @Override
+        public int getPacketId() {
+            return 0;
+        }
+
+        @Override
+        public boolean setPacketId(int packetId) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -712,8 +755,32 @@ public abstract class AbstractTeamspeakClientSocket
         private int packetId = 0;
         private int generationId = 0;
 
+        public PacketCounterFull() {
+
+        }
+
+        public PacketCounterFull(int start) {
+            setPacketId(start);
+        }
+
         public int getPacketId() {
             return packetId;
+        }
+
+        @Override
+        public boolean setPacketId(int packetId) {
+            synchronized (sendLock) {
+                if (this.packetId == packetId) return false;
+
+                if (packetId >= 65536) {
+                    packetId = 0;
+                    generationId++;
+                } else {
+                    this.packetId = packetId;
+                }
+
+                return true;
+            }
         }
 
         public int getGenerationId() {
@@ -723,13 +790,7 @@ public abstract class AbstractTeamspeakClientSocket
         @Override
         public Pair<Integer, Integer> next() {
             synchronized (sendLock) {
-                packetId++;
-
-                if (packetId >= 65536) {
-                    packetId = 0;
-                    generationId++;
-                }
-
+                setPacketId(packetId + 1);
                 return new Pair<>(packetId, generationId);
             }
         }
@@ -781,6 +842,8 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         public Packet put(Packet packet) {
+            Packet reassembled;
+
             if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
                 boolean oldState = state;
 
@@ -791,19 +854,22 @@ public abstract class AbstractTeamspeakClientSocket
 
                 queue.put(packet.getHeader().getPacketId(), packet);
 
-                if (oldState)
-                    return reassemble(packet);
-
-                return null;
+                if (oldState) {
+                    reassembled = reassemble(packet);
+                } else {
+                    reassembled = null;
+                }
             } else {
                 if (state) {
                     queue.put(packet.getHeader().getPacketId(), packet);
 
-                    return null;
+                    reassembled = null;
                 } else {
-                    return packet;
+                    reassembled = packet;
                 }
             }
+
+            return reassembled;
         }
 
         public boolean isReassembling() {

@@ -21,7 +21,7 @@ public class Identity {
     }
 
     private final ECPoint publicKey;
-    private final String fingerprint;
+    private final Uid uid;
     private final String publicKeyString;
 
     private long keyOffset = 0L, lastCheckedKeyOffset = 0L;
@@ -29,7 +29,7 @@ public class Identity {
     public Identity(ECPoint publicKey) {
         this.publicKey = publicKey;
         this.publicKeyString = Base64.getEncoder().encodeToString(Ts3Crypt.encodePublicKey(publicKey));
-        this.fingerprint = generateFingerprint();
+        this.uid = generateUid();
     }
 
     public ECPoint getPublicKey() {
@@ -40,8 +40,8 @@ public class Identity {
         return publicKeyString;
     }
 
-    public String getFingerprint() {
-        return fingerprint;
+    public Uid getUid() {
+        return uid;
     }
 
     public long getLastCheckedKeyOffset() {
@@ -129,11 +129,9 @@ public class Identity {
         return curr;
     }
 
-    private String generateFingerprint() {
+    private Uid generateUid() {
         synchronized (sha1) {
-            return Base64.getEncoder().encodeToString(
-                    sha1.digest(getPublicKeyString().getBytes(Charset.forName("ASCII")))
-            );
+            return new Uid(sha1.digest(getPublicKeyString().getBytes(Charset.forName("ASCII"))));
         }
     }
 }

@@ -1,8 +1,7 @@
 package com.github.manevolent.ts3j.protocol.packet;
 
 import com.github.manevolent.ts3j.command.Command;
-import com.github.manevolent.ts3j.command.ComplexCommand;
-import com.github.manevolent.ts3j.command.SimpleCommand;
+import com.github.manevolent.ts3j.command.MultiCommand;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
 import java.nio.ByteBuffer;
@@ -29,8 +28,8 @@ public class PacketBody2Command extends PacketBody {
         return text;
     }
 
-    public ComplexCommand parse() {
-        return ComplexCommand.parse(getRole(), getText());
+    public MultiCommand parse() {
+        return MultiCommand.parse(getRole(), getText());
     }
 
     public void setText(String text) {

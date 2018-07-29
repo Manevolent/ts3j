@@ -1,23 +1,20 @@
 package com.github.manevolent.ts3j.command;
 
-import com.github.manevolent.ts3j.command.part.CommandOption;
-import com.github.manevolent.ts3j.command.part.CommandParameter;
-import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
+import com.github.manevolent.ts3j.command.parameter.CommandParameter;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.util.Ts3String;
 
 import java.util.*;
 
-public class SimpleCommand implements Command {
+public class SingleCommand implements Command {
     private final String name;
     private final ProtocolRole role;
     private final Map<String, CommandParameter> params;
 
-    public SimpleCommand(String name, ProtocolRole role, CommandParameter... params) {
+    public SingleCommand(String name, ProtocolRole role, CommandParameter... params) {
         this(name, role, Arrays.asList(params));
     }
 
-    public SimpleCommand(String name, ProtocolRole role, List<CommandParameter> params) {
+    public SingleCommand(String name, ProtocolRole role, List<CommandParameter> params) {
         this.name = name;
         this.role = role;
 
@@ -47,7 +44,7 @@ public class SimpleCommand implements Command {
 
     public void add(CommandParameter parameter) {
         CommandParameter existing = get(parameter.getName());
-        if (existing != null) throw new IllegalArgumentException(parameter.getName() + " already set");
+        if (existing != null) throw new IllegalArgumentException(getName() + ": " + parameter.getName() + " already set");
 
         if (parameter.getName().trim().length() <= 0)
             throw new IllegalArgumentException("invalid key (empty)");
@@ -63,7 +60,7 @@ public class SimpleCommand implements Command {
         return this.params.remove(key);
     }
 
-    public static SimpleCommand parse(ProtocolRole role, String commandText) {
-        return ComplexCommand.parse(role, commandText).simplify();
+    public static SingleCommand parse(ProtocolRole role, String commandText) {
+        return MultiCommand.parse(role, commandText).simplifyFirst();
     }
 }

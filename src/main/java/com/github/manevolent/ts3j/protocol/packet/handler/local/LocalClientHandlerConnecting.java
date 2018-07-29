@@ -1,8 +1,8 @@
 package com.github.manevolent.ts3j.protocol.packet.handler.local;
 
 import com.github.manevolent.ts3j.command.CommandHandler;
-import com.github.manevolent.ts3j.command.SimpleCommand;
-import com.github.manevolent.ts3j.command.part.CommandSingleParameter;
+import com.github.manevolent.ts3j.command.SingleCommand;
+import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
@@ -116,7 +116,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     alphaBytes = new byte[10];
                     new Random().nextBytes(alphaBytes);
 
-                    SimpleCommand initiv = new SimpleCommand("clientinitiv", ProtocolRole.CLIENT);
+                    SingleCommand initiv = new SingleCommand("clientinitiv", ProtocolRole.CLIENT);
 
                     initiv.add(new CommandSingleParameter("alpha", Base64.getEncoder().encodeToString(alphaBytes)));
 
@@ -142,7 +142,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getBody() instanceof PacketBody2Command) {
-            SimpleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplify();
+            SingleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplifyOne();
 
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
@@ -177,7 +177,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 );
 
                 getClient().sendCommand(
-                        new SimpleCommand(
+                        new SingleCommand(
                                 "clientek", ProtocolRole.CLIENT,
                                 new CommandSingleParameter("ek", Base64.getEncoder().encodeToString(keyPair.getKey())),
                                 new CommandSingleParameter("proof", Base64.getEncoder().encodeToString(signature))
@@ -186,7 +186,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                 getClient().setSecureParameters(Ts3Crypt.cryptoInit2(license, alphaBytes, beta, keyPair.getValue()));
 
-                getClient().sendCommand(new SimpleCommand(
+                getClient().sendCommand(new SingleCommand(
                                 "clientinit",
                                 ProtocolRole.CLIENT,
                                 new CommandSingleParameter("client_nickname", getClient().getNickname()),
@@ -229,7 +229,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                         )
                 );
 
-                getClient().setCommandProcessor(CommandHandler.createLocalClient());
+                getClient().setCommandProcessor(CommandHandler.createLocalClientHandler());
                 getClient().setState(ClientConnectionState.RETRIEVING_DATA);
             } else if (command.getName().equals("error")) {
                 getClient().setState(ClientConnectionState.DISCONNECTED);
