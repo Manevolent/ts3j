@@ -26,10 +26,6 @@ public abstract class PacketHandler {
 
     }
 
-    public void handleCommand(Command command) {
-
-    }
-
     public TeamspeakClientSocket getClient() {
         return clientSocket;
     }

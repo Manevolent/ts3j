@@ -9,7 +9,6 @@ public interface CommandProcessor {
         for (SingleCommand singleCommand : multiCommand.simplify()) process(client, singleCommand);
     }
 
-
     default void process(AbstractTeamspeakClientSocket client,
                  SingleCommand singleCommand)
             throws CommandProcessException { }

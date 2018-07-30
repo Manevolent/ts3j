@@ -68,19 +68,25 @@ public class MultiCommand implements Command {
             boolean first = i == 0;
             boolean last = i == singleCommands.size() - 1;
 
-            if (!first) builder.append("\\p");
+            if (!first) builder.append("|");
 
             for (CommandParameter parameter : singleCommands.get(i).getParameters()) {
                 builder.append(" " + (parameter.toString()).trim());
             }
         }
 
-        return builder.toString();
+        return builder.toString().trim();
     }
 
     public static MultiCommand parse(ProtocolRole role, String text) {
         String[] labelAndText = text.split(" ", 2);
         String label = labelAndText[0].toLowerCase();
+
+        if (label.contains("=")) {
+            label = "";
+            labelAndText[1] = text; // No command label!
+        }
+
         String[] commands = labelAndText.length > 1 ? labelAndText[1].split("\\|") : new String[0];
 
         List<SingleCommand> singleCommands = new LinkedList<>();
@@ -109,7 +115,15 @@ public class MultiCommand implements Command {
                 }
             }
 
-            singleCommands.add(new SingleCommand(label, role, parameterList));
+            // Replace static variables
+            SingleCommand command = new SingleCommand(label, role, parameterList);
+
+            if (singleCommands.size() > 0) {
+                for (CommandParameter parameter : singleCommands.get(0).getParameters())
+                    if (!command.has(parameter.getName())) command.add(parameter);
+            }
+
+            singleCommands.add(command);
         }
 
         return new MultiCommand(label, role, singleCommands);

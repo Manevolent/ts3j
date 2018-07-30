@@ -2,7 +2,7 @@
 package com.github.manevolent.ts3j.protocol.client;
 
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
-import com.github.manevolent.ts3j.protocol.packet.handler.local.*;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.*;
 import com.github.manevolent.ts3j.protocol.socket.client.TeamspeakClientSocket;
 import org.apache.commons.lang.reflect.ConstructorUtils;
 

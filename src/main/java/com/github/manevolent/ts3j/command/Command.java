@@ -3,6 +3,9 @@ package com.github.manevolent.ts3j.command;
 import com.github.manevolent.ts3j.command.parameter.CommandParameter;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 public interface Command {
     /**
      * Gets the name, or label, of this command.
@@ -22,12 +25,14 @@ public interface Command {
      */
     Iterable<CommandParameter> getParameters();
 
-    /**
-     * Finds if the command is expected to be responded to with a specific return_code.
-     * This is handled by supporting protocol handlers, not by the command code itself.
-     * @return true if the command is expected to support a return_code.
-     */
-    default boolean willExpectResponse() { return false; }
+    default Map<String, String> toMap() {
+        Map<String, String> map = new LinkedHashMap<>();
+
+        for (CommandParameter parameter : getParameters())
+            map.put(parameter.getName(), parameter.getValue());
+
+        return map;
+    }
 
     void add(CommandParameter parameter);
 

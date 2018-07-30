@@ -1,76 +1,16 @@
 package com.github.manevolent.ts3j.command.response;
 
-import com.github.manevolent.ts3j.command.Command;
-import com.github.manevolent.ts3j.command.MultiCommand;
-
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
-public class CommandResponse {
-    private final Object returnLock = new Object();
-    private final Command command;
-    private final int returnCode;
+public interface CommandResponse<T> {
 
-    private long dispatchedTime;
-    private MultiCommand returnedCommand;
-
-    public CommandResponse(Command command, int returnCode) {
-        this.command = command;
-        this.returnCode = returnCode;
+    default void complete()
+            throws ExecutionException, InterruptedException {
+        get();
     }
 
-    public Command getCommand() {
-        return command;
-    }
+    T get(long timeoutMillis) throws TimeoutException, ExecutionException, InterruptedException;
+    T get() throws ExecutionException, InterruptedException;
 
-    public int getReturnCode() {
-        return returnCode;
-    }
-
-    public MultiCommand getResponse()
-            throws InterruptedException, TimeoutException {
-        return getResponse(Integer.MAX_VALUE);
-    }
-
-    public MultiCommand getResponse(int millis)
-            throws InterruptedException, TimeoutException {
-        if (returnCode < 0) return null;
-
-        synchronized (returnLock) {
-            long waited, toWait;
-
-            while (getReturnedCommand() == null) {
-                waited = System.currentTimeMillis() - getDispatchedTime();
-                toWait = millis - waited;
-
-                if (toWait <= 0) throw new TimeoutException();
-
-                returnLock.wait(toWait);
-            }
-
-            return getReturnedCommand();
-        }
-    }
-
-    public long getDispatchedTime() {
-        return dispatchedTime;
-    }
-
-    public void setDispatchedTime(long dispatchedTime) {
-        this.dispatchedTime = dispatchedTime;
-    }
-
-    public MultiCommand getReturnedCommand() {
-        return returnedCommand;
-    }
-
-    public void setReturnedCommand(MultiCommand returnedCommand) {
-        synchronized (returnLock) {
-            if (this.returnCode < 0 ) throw new IllegalArgumentException("not expecting return command");
-            if (this.returnedCommand != null) throw new IllegalArgumentException("already set return command");
-
-            this.returnedCommand = returnedCommand;
-
-            returnLock.notifyAll();
-        }
-    }
 }

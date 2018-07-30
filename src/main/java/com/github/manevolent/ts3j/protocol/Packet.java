@@ -119,7 +119,7 @@ public final class Packet {
             }
         }
 
-        getBody().read(buffer);
+        getBody().read(getHeader(), buffer);
 
         return buffer;
     }

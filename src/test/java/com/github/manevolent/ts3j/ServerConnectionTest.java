@@ -1,7 +1,8 @@
 package com.github.manevolent.ts3j;
 
+import com.github.manevolent.ts3j.command.SingleCommand;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
-import com.github.manevolent.ts3j.model.Channel;
+import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
@@ -38,12 +39,7 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            Ts3Debugging.info("Connected to " + client.getVirtualServer().getName() + ".");
-            Ts3Debugging.info(" Client name: " + client.getSelf().getNickname());
-            Ts3Debugging.info(" Channels: " +
-                    client.getVirtualServer().getChannelsOrderd()
-                    .stream().map(Channel::getName).collect(Collectors.toList())
-            );
+            client.getChannels().complete();
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

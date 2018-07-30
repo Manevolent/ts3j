@@ -1,9 +1,18 @@
 package com.github.manevolent.ts3j.protocol.socket.client;
 
+import com.github.manevolent.ts3j.api.Channel;
+import com.github.manevolent.ts3j.command.*;
+import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
+import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
+import com.github.manevolent.ts3j.command.response.CommandResponse;
+import com.github.manevolent.ts3j.event.TS3Event;
+import com.github.manevolent.ts3j.event.TS3Listener;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
@@ -13,12 +22,14 @@ import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 
-public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
+public class LocalTeamspeakClientSocket
+        extends AbstractTeamspeakClientSocket
+        implements CommandProcessor {
     private final DatagramSocket socket;
-
-    private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
 
     {
         try {
@@ -28,8 +39,31 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
         }
     }
 
+    private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
+
+    private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
+    private final Object commandSendLock = new Object();
+
+    private List<TS3Listener> listeners = new LinkedList<>();
+
+    private int acceptingReturnCode = 0;
+    private int lastReturnCode = 0;
+    private Map<Integer, CommandProcessor> awaitingCommands = new HashMap<>();
+
     public LocalTeamspeakClientSocket() {
         super();
+
+        namedProcessors.put("initserver", new InitServerHandler());
+        namedProcessors.put("channellist", new NullRouteHandler());
+        namedProcessors.put("channellistfinished", new ChannelListFinishedHandler());
+    }
+
+    public void addListener(TS3Listener listener) {
+        this.listeners.add(listener);
+    }
+
+    public boolean removeListener(TS3Listener listener) {
+        return this.listeners.remove(listener);
     }
 
     @Override
@@ -101,7 +135,8 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
             setGenerationId(0);
 
             setOption("client.hostname", remote.getHostString());
-            //setOption("client.password", password);
+
+            if (password != null) setOption("client.password", password);
 
             socket.connect(remote);
 
@@ -132,5 +167,168 @@ public class LocalTeamspeakClientSocket extends AbstractTeamspeakClientSocket {
     @Override
     public void close() throws IOException {
         socket.close();
+    }
+
+    @Override
+    public void process(AbstractTeamspeakClientSocket client,
+                        SingleCommand singleCommand)
+            throws CommandProcessException {
+        CommandProcessor processor = namedProcessors.get(singleCommand.getName());
+        if (processor != null) {
+            processor.process(client, singleCommand);
+        } else if (singleCommand.getName().startsWith("notify")) {
+            TS3Event event = TS3Event.createEvent(singleCommand);
+            for (TS3Listener listener : listeners) event.fire(listener);
+        } else {
+            CommandProcessor awaitingCommandProcessor;
+
+            synchronized (commandSendLock) {
+                awaitingCommandProcessor = awaitingCommands.get(acceptingReturnCode);
+            }
+
+            if (awaitingCommandProcessor != null)
+                awaitingCommandProcessor.process(client, singleCommand);
+        }
+    }
+
+    public CommandResponse<Iterable<Channel>> getChannels() throws IOException, TimeoutException {
+        return executeMappedCommand(
+                new SingleCommand("channellist", ProtocolRole.CLIENT),
+                command -> new Channel(command.toMap())
+        );
+    }
+
+    private CommandResponse<Iterable<MultiCommand>> executeCommand(Command command)
+            throws IOException, TimeoutException {
+        return executeCommand(command, Function.identity());
+    }
+
+    private <T> CommandResponse<T> executeCommand(
+            Command command,
+            Function<Iterable<MultiCommand>, T> processor
+    ) throws IOException, TimeoutException {
+        int returnCode;
+
+        ClientCommandResponse<T> response;
+
+        // sync may not be necessary here
+        synchronized (commandSendLock) {
+            returnCode = lastReturnCode++;
+            awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, processor));
+        }
+
+        command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
+
+        try {
+            writePacket(new PacketBody2Command(getRole().getOut(), command));
+        } catch (Throwable e) {
+            awaitingCommands.remove(returnCode);
+
+            throw e;
+        }
+
+        return response;
+    }
+
+    private <T> CommandResponse<Iterable<T>> executeMappedCommand(
+            Command command,
+            Function<SingleCommand, T> processor
+    ) throws IOException, TimeoutException {
+        int returnCode;
+
+        // sync may not be necessary here
+        synchronized (commandSendLock) {
+            returnCode = lastReturnCode++;
+        }
+
+        command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
+
+        ClientCommandResponse<Iterable<T>> response;
+
+        awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, multiCommands -> {
+            List<SingleCommand> commands = new LinkedList<>();
+            for (MultiCommand multiCommand : multiCommands) commands.addAll(multiCommand.simplify());
+
+            List<T> results = new LinkedList<>();
+            for (SingleCommand command1 : commands)
+                results.add(processor.apply(command1));
+
+            return results;
+        }));
+
+        try {
+            writePacket(new PacketBody2Command(getRole().getOut(), command));
+        } catch (Throwable e) {
+            awaitingCommands.remove(returnCode);
+
+            throw e;
+        }
+
+        return response;
+    }
+
+    private class ClientCommandResponse<T>
+            extends AbstractCommandResponse<T>
+            implements CommandProcessor {
+        private final int returnCode;
+        private final List<MultiCommand> commands = new LinkedList<>();
+
+        public ClientCommandResponse(int returnCode,
+                                     Function<Iterable<MultiCommand>, T> processor) {
+            super(processor);
+            this.returnCode = returnCode;
+        }
+
+        @Override
+        public void process(AbstractTeamspeakClientSocket client,
+                             MultiCommand multiCommand)
+                throws CommandProcessException {
+            if (multiCommand.getName().equalsIgnoreCase("error")) {
+                SingleCommand command = multiCommand.simplifyFirst();
+                int errorId = Integer.parseInt(command.get("id").getValue());
+
+                switch (errorId) {
+                    case 0:
+                        completeSuccess(commands);
+                        break;
+                    default:
+                        completeFailure(new CommandException(command.get("msg").getValue(), errorId));
+                        break;
+                }
+
+                synchronized (awaitingCommands) {
+                    awaitingCommands.remove(returnCode);
+                }
+            } else
+                commands.add(multiCommand);
+        }
+
+        public int getReturnCode() {
+            return returnCode;
+        }
+    }
+
+    private class ChannelListFinishedHandler implements CommandProcessor {
+
+    }
+
+    private class NullRouteHandler implements CommandProcessor {
+        @Override
+        public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
+                throws CommandProcessException {
+            // Do nothing
+        }
+    }
+
+    private class InitServerHandler implements CommandProcessor {
+        @Override
+        public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
+                throws CommandProcessException {
+            try {
+                setState(ClientConnectionState.CONNECTED);
+            } catch (Exception e) {
+                throw new CommandProcessException(e);
+            }
+        }
     }
 }

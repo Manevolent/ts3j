@@ -1,15 +1,9 @@
 package com.github.manevolent.ts3j.protocol.socket.client;
 
-import com.github.manevolent.ts3j.command.Command;
-import com.github.manevolent.ts3j.command.CommandProcessor;
-import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
-import com.github.manevolent.ts3j.command.response.CommandResponse;
+import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.identity.Identity;
-import com.github.manevolent.ts3j.model.Client;
-import com.github.manevolent.ts3j.model.VirtualServer;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
-import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
@@ -17,8 +11,8 @@ import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.*;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
-import com.github.manevolent.ts3j.protocol.packet.handler.local.LocalClientHandler;
-import com.github.manevolent.ts3j.protocol.packet.transformation.DefaultPacketTransformation;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandler;
+import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
 import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
 import com.github.manevolent.ts3j.util.QuickLZ;
@@ -50,17 +44,14 @@ public abstract class AbstractTeamspeakClientSocket
 
     private CommandProcessor commandProcessor;
 
-    private VirtualServer virtualServer;
-
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
-    private PacketTransformation transformation = new DefaultPacketTransformation();
+    private PacketTransformation transformation = new InitPacketTransformation();
     private PacketHandler handler;
 
     private int generationId = 0;
     private int clientId = 0;
     private int packetId = 0;
-    private int commandReturnCode = 0;
 
     private final NetworkReader networkReader = new NetworkReader();
     private final NetworkHandler networkHandler = new NetworkHandler();
@@ -175,34 +166,6 @@ public abstract class AbstractTeamspeakClientSocket
         return connectionState == ClientConnectionState.CONNECTED;
     }
 
-    /**
-     * Sends a command to the remote.
-     * @param command Command to send.
-     * @return Command response object to track command response.
-     * @throws IOException
-     */
-    public CommandResponse sendCommand(Command command) throws IOException, TimeoutException {
-        if (command.willExpectResponse() && !isConnected())
-            throw new IOException("not connected");
-
-        CommandResponse response;
-
-        if (command.willExpectResponse()) {
-            int returnCode = commandReturnCode++;
-            response = new CommandResponse(command, returnCode++);
-            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
-        } else {
-            response = new CommandResponse(command, -1);
-        }
-
-        response.setDispatchedTime(System.currentTimeMillis());
-
-        writePacket(new PacketBody2Command(ProtocolRole.CLIENT, command));
-
-        return response;
-    }
-
-
     @Override
     public void writePacket(PacketBody body) throws IOException, TimeoutException {
         PacketHeader header;
@@ -311,9 +274,6 @@ public abstract class AbstractTeamspeakClientSocket
         ByteBuffer outputBuffer;
 
         if (!packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
-            if (!packet.getHeader().getType().canEncrypt())
-                throw new IllegalArgumentException("packet flagged as encrypted but this would be a violation");
-
             outputBuffer = getTransformation().encrypt(packet);
         } else {
             if (packet.getHeader().getType() == PacketBodyType.INIT1) {
@@ -392,13 +352,19 @@ public abstract class AbstractTeamspeakClientSocket
         if (networkPacket.getHeader().getType().isSplittable()) {
             fragment = fragment || reassemblyQueue.get(networkPacket.getHeader().getType()).isReassembling();
         } else if (fragment)
-            throw new IllegalArgumentException("packet is fragment, but not splittable");
+            throw new IllegalArgumentException(
+                    networkPacket.getHeader().getType() +
+                    "packet is fragment, but not splittable"
+            );
 
         boolean encrypted = !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED) &&
                 networkPacket.getHeader().getType().canEncrypt();
 
         if (networkPacket.getHeader().getType().mustEncrypt() && !encrypted)
-            throw new IllegalArgumentException("packet is unencrypted, but must be encrypted");
+            throw new IllegalArgumentException(
+                    networkPacket.getHeader().getType() +
+                    " is unencrypted, but must be encrypted"
+            );
 
         ByteBuffer packetBuffer =
                 (ByteBuffer) networkPacket.getBuffer().position(networkPacket.getHeader().getSize());
@@ -597,18 +563,6 @@ public abstract class AbstractTeamspeakClientSocket
 
     public void setCommandProcessor(CommandProcessor commandProcessor) {
         this.commandProcessor = commandProcessor;
-    }
-
-    public VirtualServer getVirtualServer() {
-        return virtualServer;
-    }
-
-    public void setVirtualServer(VirtualServer virtualServer) {
-        this.virtualServer = virtualServer;
-    }
-
-    public Client getSelf() {
-        return virtualServer.getClientById(clientId);
     }
 
     private class NetworkHandler implements Runnable {

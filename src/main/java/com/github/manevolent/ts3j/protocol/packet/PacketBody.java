@@ -22,6 +22,10 @@ public abstract class PacketBody {
         return role;
     }
 
+    public void read(PacketHeader header, ByteBuffer buffer) {
+        read(buffer);
+    }
+
     public abstract void read(ByteBuffer buffer);
 
     public abstract void write(ByteBuffer buffer);
