@@ -30,6 +30,11 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.*;
 
+/**
+ * Server/client common abstract client socket, used to interact with the UDP connection.  Provides most of the protocol
+ * such as fragmentation, compression, encryption, and sliding windows.  Handles packet counters and automatically
+ * handles ACK and PING types for the higher layer.
+ */
 public abstract class AbstractTeamspeakClientSocket
         extends AbstractTeamspeakSocket
         implements TeamspeakClientSocket {
@@ -256,6 +261,11 @@ public abstract class AbstractTeamspeakClientSocket
             case COMMAND:
             case COMMAND_LOW:
                 header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+                break;
+            case VOICE:
+                // > X is a ushort in H2N order of an own audio packet counter
+                //     it seems it can be the same as the packet counter so we will let the packethandler do it.
+                ((PacketBody0Voice)body).setPacketId(header.getPacketId());
                 break;
         }
 

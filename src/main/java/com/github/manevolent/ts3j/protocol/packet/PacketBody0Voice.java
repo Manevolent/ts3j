@@ -57,7 +57,7 @@ public class PacketBody0Voice extends PacketBody {
         if (getRole() == ProtocolRole.SERVER)
             clientId = buffer.getShort() & 0x0000FFFF;
 
-        codecType = CodecType.fromId((int) (buffer.get() & 0xFF));
+        codecType = CodecType.fromId(buffer.get() & 0xFF);
 
         codecData = new byte[buffer.remaining()];
 

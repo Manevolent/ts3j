@@ -1,10 +1,12 @@
 package com.github.manevolent.ts3j.protocol.socket.client;
 
 import com.github.manevolent.ts3j.api.Channel;
+import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
+import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.event.TS3Event;
 import com.github.manevolent.ts3j.event.TS3Listener;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
@@ -12,7 +14,9 @@ import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
+import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
@@ -40,6 +44,10 @@ public class LocalTeamspeakClientSocket
 
     private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
     private final Object commandSendLock = new Object();
+
+
+    private Microphone microphone;
+    private Thread microphoneThread;
 
     private List<TS3Listener> listeners = new LinkedList<>();
 
@@ -147,6 +155,14 @@ public class LocalTeamspeakClientSocket
             setState(ClientConnectionState.CONNECTING);
 
             waitForState(ClientConnectionState.CONNECTED, timeout);
+
+            microphoneThread = new HighPrecisionRecurrentTask(
+                    1000,
+                    0.020F,
+                    new MicrophoneTask()
+            );
+
+            microphoneThread.start();
         } catch (TimeoutException e) {
             setState(ClientConnectionState.DISCONNECTED);
 
@@ -269,6 +285,52 @@ public class LocalTeamspeakClientSocket
         }
 
         return response;
+    }
+
+    public Microphone getMicrophone() {
+        return microphone;
+    }
+
+    public void setMicrophone(Microphone microphone) {
+        if (this.microphone != microphone) {
+            this.microphone = microphone;
+
+            if (microphone == null && microphoneThread != null) {
+                microphoneThread.interrupt();
+                microphoneThread = null;
+            }
+        }
+    }
+
+    private class MicrophoneTask implements Runnable {
+        @Override
+        public void run() {
+            PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
+            Microphone microphone;
+            while (isConnected()) {
+                // Attempt to get the current microphone instance, saving it in a variable to prevent
+                // any race conditions by accessing the parent class' this.microphone.
+                if ((microphone = LocalTeamspeakClientSocket.this.microphone) == null)
+                    continue;
+
+                if (microphone.isMuted()) {
+                    // TODO
+                    // Set a state and send a muted event
+                } else if (microphone.isReady()) {
+                    voice.setCodecType(microphone.getCodec());
+                    voice.setCodecData(microphone.provide());
+
+                    try {
+                        writePacket(voice);
+                    } catch (IOException e) {
+                        // All we are really concerned about here is a disconnection event, in which case the loop
+                        // will exit.
+                    } catch (TimeoutException e) {
+                        // Not really possible, as we might expect, voice doesn't have ACKs.
+                    }
+                }
+            }
+        }
     }
 
     private class ClientCommandResponse<T>

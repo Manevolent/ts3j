@@ -47,10 +47,44 @@ public interface TeamspeakClientSocket extends TeamspeakSocket {
 
     PacketHandler getHandler();
 
+    /**
+     * Reads a packet from the remote endpoint.
+     *
+     * Note that this call may fight with any other reading threads; it is advisede to use the PacketHandler instead.
+     *
+     * This method does not return ACKs, such as: ACK, ACK_LOW, PING, or PONG.  These are protocol-level packets that
+     * are handled automatically by the protocol code.
+     *
+     * This method does return INIT1, COMMAND, COMMAND_LOW, and possibly VOICE, and VOICE_WHISPER.
+     *
+     * This method does not return fragments or encrypted bodies.  This is handled by the underlying protocol
+     * implementation.
+     *
+     * @return Packet.
+     * @throws IOException
+     * @throws TimeoutException
+     */
     Packet readPacket() throws IOException, TimeoutException;
 
+    /**
+     * Sends a packet body to the remote endpoint, generating header information as necessary.
+     *
+     * @param body Body to send.
+     * @throws IOException if there is an issue sending the packet (i.e. socket closed)
+     * @throws TimeoutException if the packet is not acknowledged in time
+     */
     void writePacket(PacketBody body) throws IOException, TimeoutException;
 
+    /**
+     * Writes a packet to the remote endpoint, not generating header information.  This must be done by the caller.
+     * The packet will be checked, split, and encrypted as needed.
+     *
+     * This includes packet ID, client ID, type, and flags.
+     *
+     * @param packet raw packet information to send.
+     * @throws IOException
+     * @throws TimeoutException
+     */
     void writePacket(Packet packet) throws IOException, TimeoutException;
 
 }

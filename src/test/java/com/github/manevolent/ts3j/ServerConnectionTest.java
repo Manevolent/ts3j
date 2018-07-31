@@ -1,6 +1,8 @@
 package com.github.manevolent.ts3j;
 
+import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.command.SingleCommand;
+import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
@@ -36,6 +38,23 @@ public class ServerConnectionTest  {
                     null,
                     10000L
             );
+
+            client.setMicrophone(new Microphone() {
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+
+                @Override
+                public CodecType getCodec() {
+                    return CodecType.OPUS_MUSIC;
+                }
+
+                @Override
+                public byte[] provide() {
+                    return new byte[20];
+                }
+            });
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
