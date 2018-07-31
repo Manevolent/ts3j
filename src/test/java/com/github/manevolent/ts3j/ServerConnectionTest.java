@@ -22,6 +22,8 @@ import static org.junit.Assert.assertEquals;
 public class ServerConnectionTest  {
     public static void main(String[] args) throws Exception {
         try {
+            Ts3Debugging.setEnabled(true);
+
             LocalIdentity localIdentity = LocalIdentity.generateNew(10);
 
             LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
