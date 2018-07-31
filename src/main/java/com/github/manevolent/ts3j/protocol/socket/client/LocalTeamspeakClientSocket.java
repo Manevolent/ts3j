@@ -16,10 +16,7 @@ import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.SocketException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
@@ -67,10 +64,12 @@ public class LocalTeamspeakClientSocket
     }
 
     @Override
-    protected NetworkPacket readNetworkPacket() throws IOException {
-        socket.receive(packet);
+    protected NetworkPacket readNetworkPacket(int timeout) throws
+            IOException,
+            SocketTimeoutException {
 
-        Ts3Debugging.debug("[NETWORK] READ len=" + packet.getLength() + " from " + packet.getSocketAddress());
+        socket.setSoTimeout(timeout);
+        socket.receive(packet);
 
         PacketHeader header;
 
@@ -85,6 +84,11 @@ public class LocalTeamspeakClientSocket
                 .order(ByteOrder.BIG_ENDIAN);
 
         header.read(buffer);
+
+        Ts3Debugging.debug("[NETWORK] READ" +
+                " id=" + header.getPacketId() +
+                " len=" + packet.getLength() +
+                " from " + packet.getSocketAddress());
 
         return new NetworkPacket(
                 packet,
@@ -325,6 +329,8 @@ public class LocalTeamspeakClientSocket
         public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
                 throws CommandProcessException {
             try {
+                setClientId(Integer.parseInt(singleCommand.get("aclid").getValue()));
+
                 setState(ClientConnectionState.CONNECTED);
             } catch (Exception e) {
                 throw new CommandProcessException(e);

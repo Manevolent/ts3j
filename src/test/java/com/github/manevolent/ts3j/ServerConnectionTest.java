@@ -39,7 +39,9 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            client.getChannels().complete();
+            while (true) {
+                Thread.sleep(1000L);
+            }
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

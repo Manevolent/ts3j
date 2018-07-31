@@ -4,6 +4,7 @@ import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
+import com.github.manevolent.ts3j.protocol.RingQueue;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
@@ -19,9 +20,11 @@ import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import javafx.util.Pair;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
@@ -39,8 +42,10 @@ public abstract class AbstractTeamspeakClientSocket
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
     private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
+    private final Map<Integer, PacketResponse> sendQueueLow = new ConcurrentHashMap<>();
+
     private final Map<PacketBodyType, PacketCounter> localSendCounter = new ConcurrentHashMap<>();
-    private final Map<PacketBodyType, PacketCounter> remoteSendCounter = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, RingQueue> remoteQueue = new ConcurrentHashMap<>();
 
     private CommandProcessor commandProcessor;
 
@@ -52,6 +57,8 @@ public abstract class AbstractTeamspeakClientSocket
     private int generationId = 0;
     private int clientId = 0;
     private int packetId = 0;
+
+    private long lastPing;
 
     private final NetworkReader networkReader = new NetworkReader();
     private final NetworkHandler networkHandler = new NetworkHandler();
@@ -75,14 +82,15 @@ public abstract class AbstractTeamspeakClientSocket
                 reassemblyQueue.put(bodyType, new Reassembly());
 
         // Initialize counters
-        for (PacketBodyType bodyType : PacketBodyType.values())
+        for (PacketBodyType bodyType : PacketBodyType.values()) {
             if (bodyType == PacketBodyType.INIT1) {
-                localSendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
-                remoteSendCounter.put(PacketBodyType.INIT1, new PacketCounterZero());
+                localSendCounter.put(bodyType, new PacketCounterZero());
             } else {
-                localSendCounter.put(bodyType, new PacketCounterFull());
-                remoteSendCounter.put(bodyType, new PacketCounterFull(-1));
+                localSendCounter.put(bodyType, new PacketCounterFull(true));
             }
+
+            remoteQueue.put(bodyType, new RingQueue(100, 65536));
+        }
     }
 
     protected void start() {
@@ -104,7 +112,7 @@ public abstract class AbstractTeamspeakClientSocket
         setTransformation(new PacketTransformation(parameters.getIvStruct(), parameters.getFakeSignature()));
     }
 
-    protected abstract NetworkPacket readNetworkPacket() throws IOException;
+    protected abstract NetworkPacket readNetworkPacket(int timeout) throws IOException;
 
     protected abstract void writeNetworkPacket(NetworkPacket packet) throws IOException;
 
@@ -166,20 +174,92 @@ public abstract class AbstractTeamspeakClientSocket
         return connectionState == ClientConnectionState.CONNECTED;
     }
 
-    @Override
-    public void writePacket(PacketBody body) throws IOException, TimeoutException {
+    private PacketHeader newOutgoingHeader() {
         PacketHeader header;
 
         try {
-            header = body.getRole().getHeaderClass().newInstance();
+            header = getRole().getOut().getHeaderClass().newInstance();
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
 
+        return header;
+    }
+
+    @Override
+    public void writePacket(PacketBody body) throws IOException, TimeoutException {
         // Construct a network packet
         Packet packet = new Packet(body.getRole());
-        packet.setHeader(header);
         packet.setBody(body);
+
+        // Generate header
+        PacketHeader header = newOutgoingHeader();
+
+        // Ensure type matches
+        header.setType(packet.getBody().getType());
+
+        // Set header values
+        body.setHeaderValues(header);
+
+        if (header instanceof ClientPacketHeader)
+            ((ClientPacketHeader) header).setClientId(clientId);
+
+        // Count packet
+        Pair<Integer, Integer> counter;
+
+        switch (header.getType()) {
+            case ACK:
+                counter = new Pair<>(
+                        ((PacketBody6Ack)packet.getBody()).getPacketId(),
+                        remoteQueue.get(PacketBodyType.ACK).getGeneration(
+                                ((PacketBody6Ack) packet.getBody()).getPacketId()
+                        )
+                );
+                break;
+            case ACK_LOW:
+                counter = new Pair<>(
+                        ((PacketBody7AckLow)packet.getBody()).getPacketId(),
+                        remoteQueue.get(PacketBodyType.ACK_LOW).getGeneration(
+                                ((PacketBody7AckLow) packet.getBody()).getPacketId()
+                        )
+                );
+                break;
+            case PONG:
+                counter = new Pair<>(
+                        ((PacketBody5Pong)packet.getBody()).getPacketId(),
+                        remoteQueue.get(PacketBodyType.PONG).getGeneration(
+                                ((PacketBody5Pong) packet.getBody()).getPacketId()
+                        )
+                );
+                break;
+            /*case PING:
+                counter = localSendCounter.get(PacketBodyType.PING).current();
+                break;*/
+            case INIT1:
+                counter = new Pair<>(101, 0);
+                break;
+            default:
+                counter = localSendCounter.get(header.getType()).next();
+                break;
+        }
+
+        header.setPacketId(counter.getKey());
+        header.setGeneration(counter.getValue());
+
+        switch (header.getType()) {
+            case INIT1:
+            case PONG:
+            case PING:
+                // setHeaderValues will do this, too
+                header.setPacketFlag(HeaderFlag.UNENCRYPTED, true);
+                break;
+            case COMMAND:
+            case COMMAND_LOW:
+                header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+                break;
+        }
+
+        packet.setHeader(header);
 
         writePacket(packet);
     }
@@ -192,30 +272,6 @@ public abstract class AbstractTeamspeakClientSocket
             throw new IllegalArgumentException("packet role mismatch: " +
                     packet.getHeader().getRole().name() + " != " +
                     getRole().getOut().name());
-
-        // Ensure type matches
-        packet.getHeader().setType(packet.getBody().getType());
-
-        // Set header values
-        packet.getBody().setHeaderValues(packet.getHeader());
-
-        Pair<Integer, Integer> counterResult = localSendCounter.get(packet.getHeader().getType()).next();
-        if (packet.getHeader() instanceof ClientPacketHeader)
-            ((ClientPacketHeader) packet.getHeader()).setClientId(clientId);
-
-        packet.getHeader().setPacketId(counterResult.getKey());
-        packet.getHeader().setGeneration(counterResult.getValue());
-
-        switch (packet.getHeader().getType()) {
-            case INIT1:
-                packet.getHeader().setPacketFlag(HeaderFlag.UNENCRYPTED, true);
-                packet.getHeader().setPacketId((short)101);
-                break;
-            case COMMAND:
-            case COMMAND_LOW:
-                packet.getHeader().setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
-                break;
-        }
 
         if (packet.getSize() > 500) {
             int totalSize = packet.getBody().getSize();
@@ -274,6 +330,10 @@ public abstract class AbstractTeamspeakClientSocket
         ByteBuffer outputBuffer;
 
         if (!packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
+            Ts3Debugging.debug("[PROTOCOL] ENCRYPT " +
+                    packet.getHeader().getType().name() + " generation=" +
+                    packet.getHeader().getGeneration());
+
             outputBuffer = getTransformation().encrypt(packet);
         } else {
             if (packet.getHeader().getType() == PacketBodyType.INIT1) {
@@ -315,7 +375,7 @@ public abstract class AbstractTeamspeakClientSocket
         writeNetworkPacket(networkPacket);
 
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
-        if (response != null) {
+        if (response != null && networkPacket.getHeader().getType() != PacketBodyType.PING) {
             while (response.getRetries() < response.getMaxTries()) {
                 try {
                     if (getState() == ClientConnectionState.DISCONNECTED)
@@ -344,6 +404,11 @@ public abstract class AbstractTeamspeakClientSocket
     private Packet readPacketIntl(NetworkPacket networkPacket) throws IOException {
         if (networkPacket.getHeader() == null) throw new NullPointerException("header");
 
+        RingQueue ring = remoteQueue.get(networkPacket.getHeader().getType());
+        int currentGeneration = ring == null ? 0 : ring.getGeneration(networkPacket.getHeader().getPacketId());
+
+        networkPacket.getHeader().setGeneration(currentGeneration);
+
         Packet packet = new Packet(networkPacket.getHeader().getRole());
         packet.setHeader(networkPacket.getHeader());
 
@@ -366,18 +431,25 @@ public abstract class AbstractTeamspeakClientSocket
                     " is unencrypted, but must be encrypted"
             );
 
-        ByteBuffer packetBuffer =
-                (ByteBuffer) networkPacket.getBuffer().position(networkPacket.getHeader().getSize());
+        ByteBuffer packetBuffer = networkPacket.getBuffer();
 
         // Decrypt
         if (encrypted) {
-            packetBuffer = ByteBuffer.wrap(
-                    getTransformation().decrypt(
-                            networkPacket.getHeader(),
-                            packetBuffer,
-                            networkPacket.getDatagram().getLength() - networkPacket.getHeader().getSize()
-                    )
-            );
+            Ts3Debugging.debug("[PROTOCOL] DECRYPT " + networkPacket.getHeader().getType().name()
+                    + " generation=" + currentGeneration);
+
+            try {
+                packetBuffer = ByteBuffer.wrap(
+                        getTransformation().decrypt(
+                                networkPacket.getHeader(),
+                                packetBuffer,
+                                networkPacket.getDatagram().getLength() -
+                                        networkPacket.getHeader().getSize()
+                        )
+                ).order(ByteOrder.BIG_ENDIAN);
+            } catch (InvalidCipherTextException e) {
+                throw new IOException("failed to decrypt " + networkPacket.getHeader().getType().name(), e);
+            }
         }
 
         // Fragment handling
@@ -399,7 +471,9 @@ public abstract class AbstractTeamspeakClientSocket
         if (packet.getBody() instanceof PacketBodyCompressed) {
             byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
 
-            packetBuffer = ByteBuffer.wrap(decompressed);
+            packetBuffer = ByteBuffer
+                    .wrap(decompressed)
+                    .order(ByteOrder.BIG_ENDIAN);
 
             packet = new Packet(packet.getRole(), packet.getHeader());
 
@@ -413,23 +487,80 @@ public abstract class AbstractTeamspeakClientSocket
     }
 
     @Override
-    public Packet readPacket() throws IOException, TimeoutException {
+    public Packet readPacket() throws
+            IOException,
+            TimeoutException {
+        NetworkPacket networkPacket;
+        long timeout;
+
         while (isReading()) {
-            Packet packet = readPacketIntl(readNetworkPacket());
+            try {
+                timeout = getState() == ClientConnectionState.CONNECTED ?
+                        Math.min(1000L, 1000L - (System.currentTimeMillis() - lastPing)) :
+                        Integer.MAX_VALUE;
+
+                if (timeout <= 0) throw new SocketTimeoutException();
+
+                networkPacket = readNetworkPacket((int) timeout);
+            } catch (SocketTimeoutException e) {
+                if (getState() == ClientConnectionState.CONNECTED) {
+                    writePacket(new PacketBody4Ping(getRole().getOut()));
+                    lastPing = System.currentTimeMillis();
+                }
+
+                continue;
+            }
+
+            Packet packet = readPacketIntl(networkPacket);
 
             // Find if the packet must be acknowledged
-            PacketBodyType ackType = packet.getHeader().getType().getAcknolwedgedBy();
+            PacketBodyType ackType = packet
+                    .getHeader()
+                    .getType()
+                    .getAcknolwedgedBy();
+
             if (ackType != null) {
                 switch (ackType) {
                     case ACK:
+                        Ts3Debugging.debug("[PROTOCOL] Acknowledge " + packet + " " + packet.getHeader().getType().name()
+                                + " id=" + packet.getHeader().getPacketId());
                         writePacket(new PacketBody6Ack(getRole().getOut(), packet.getHeader().getPacketId()));
                         break;
                     case ACK_LOW:
                         writePacket(new PacketBody7AckLow(getRole().getOut(), packet.getHeader().getPacketId()));
                         break;
                     case PONG:
-                        writePacket(new PacketBody5Pong(getRole().getOut(), packet.getHeader().getPacketId()));
+                        Packet pong = new Packet(
+                                getRole().getOut(),
+                                newOutgoingHeader()
+                        );
+
+                        if (pong.getHeader() instanceof ClientPacketHeader)
+                            ((ClientPacketHeader) pong.getHeader()).setClientId(getClientId());
+
+                        pong.getHeader().setPacketFlag(HeaderFlag.UNENCRYPTED, true);
+                        pong.getHeader().setPacketId(packet.getHeader().getPacketId());
+                        pong.setBody(new PacketBody5Pong(getRole().getOut(), packet.getHeader().getPacketId()));
+
+                        writePacket(pong);
+
                         continue; // Don't pass pings to the parent
+                }
+            }
+
+            if (packet.getHeader().getType().canResend() &&
+                    packet.getHeader().getType() != PacketBodyType.INIT1) {
+                // Find if we already acknowledged this packet
+                RingQueue ring = remoteQueue.get(packet.getHeader().getType());
+                if (ring.isSet(packet.getHeader().getPacketId())) {
+                    Ts3Debugging.debug("[PROTOCOL] Ignoring handling resent packet: " +
+                            packet + " " +
+                            packet.getHeader().getType().name() + " id=" +
+                            packet.getHeader().getPacketId());
+
+                    continue; // Drop the packet
+                } else {
+                    ring.set(packet.getHeader().getPacketId());
                 }
             }
 
@@ -438,17 +569,6 @@ public abstract class AbstractTeamspeakClientSocket
                 packet = reassemblyQueue.get(packet.getHeader().getType()).put(packet);
                 if (packet == null) continue;
             }
-
-            if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1)
-                // Find if we already acknowledged this packet
-                if (!remoteSendCounter
-                        .get(packet.getHeader().getType())
-                        .setPacketId(packet.getHeader().getPacketId())) {
-                    Ts3Debugging.debug("[PROTOCOL] Ignoring handling resent packet: " +
-                            packet.getHeader().getType().name() + " id=" +
-                            packet.getHeader().getPacketId());
-                    continue; // Drop the packet
-                }
 
             // Find if the packet is itself an acknowledgement
             boolean handle;
@@ -459,7 +579,11 @@ public abstract class AbstractTeamspeakClientSocket
                     handle = false;
                     break;
                 case ACK_LOW:
-                    response = sendQueue.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
+                    response = sendQueueLow.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
+                    handle = false;
+                    break;
+                case PONG:
+                    response = null;
                     handle = false;
                     break;
                 default:
@@ -680,6 +804,11 @@ public abstract class AbstractTeamspeakClientSocket
         int getPacketId();
         boolean setPacketId(int packetId);
         int getGenerationId();
+        void setGenerationId(int i);
+
+        default Pair<Integer,Integer> current() {
+            return new Pair<>(getPacketId(), getGenerationId());
+        }
     }
 
     private class PacketCounterZero implements PacketCounter {
@@ -702,18 +831,26 @@ public abstract class AbstractTeamspeakClientSocket
         public int getGenerationId() {
             return 0;
         }
+
+        @Override
+        public void setGenerationId(int i) {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private class PacketCounterFull implements PacketCounter {
         private final Object sendLock = new Object();
+        private final boolean counting;
         private int packetId = 0;
         private int generationId = 0;
 
-        public PacketCounterFull() {
-
+        public PacketCounterFull(boolean counting) {
+            this.counting = counting;
         }
 
-        public PacketCounterFull(int start) {
+        public PacketCounterFull(int start, boolean counting) {
+            this.counting = counting;
+
             setPacketId(start);
         }
 
@@ -727,8 +864,8 @@ public abstract class AbstractTeamspeakClientSocket
                 if (this.packetId == packetId) return false;
 
                 if (packetId >= 65536) {
-                    packetId = 0;
-                    generationId++;
+                    this.packetId = 0; // wrap around
+                    if (isCounting()) setGenerationId(getGenerationId() + 1);
                 } else {
                     this.packetId = packetId;
                 }
@@ -742,11 +879,23 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         @Override
+        public void setGenerationId(int i) {
+            synchronized (sendLock) {
+                Ts3Debugging.debug("setGenerationId: " + i);
+                this.generationId = i;
+            }
+        }
+
+        @Override
         public Pair<Integer, Integer> next() {
             synchronized (sendLock) {
-                setPacketId(packetId + 1);
-                return new Pair<>(packetId, generationId);
+                setPacketId(getPacketId() + 1);
+                return current();
             }
+        }
+
+        public boolean isCounting() {
+            return counting;
         }
     }
 

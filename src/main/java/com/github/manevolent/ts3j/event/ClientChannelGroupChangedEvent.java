@@ -26,38 +26,32 @@ package com.github.manevolent.ts3j.event;
  * #L%
  */
 
-public interface TS3Listener {
+import java.util.Map;
 
-	void onTextMessage(TextMessageEvent e);
+public class ClientChannelGroupChangedEvent extends BaseEvent {
 
-	void onClientJoin(ClientJoinEvent e);
+	public ClientChannelGroupChangedEvent(Map<String, String> map) {
+		super(map);
+	}
 
-	void onClientLeave(ClientLeaveEvent e);
+	public int getClientId() {
+		return getInt("clid");
+	}
 
-	void onServerEdit(ServerEditedEvent e);
+	public int getChannelGroupId() {
+		return getInt("cgid");
+	}
 
-	void onChannelEdit(ChannelEditedEvent e);
+	public int getChannelId() {
+		return getInt("cid");
+	}
 
-	void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e);
+	public int getInheritedChannelId() {
+		return getInt("cgi");
+	}
 
-	void onClientMoved(ClientMovedEvent e);
-
-	void onChannelCreate(ChannelCreateEvent e);
-
-	void onChannelDeleted(ChannelDeletedEvent e);
-
-	void onChannelMoved(ChannelMovedEvent e);
-
-	void onChannelPasswordChanged(ChannelPasswordChangedEvent e);
-
-	void onPrivilegeKeyUsed(PrivilegeKeyUsedEvent e);
-
-	void onChannelGroupList(ChannelGroupListEvent e);
-
-	void onServerGroupList(ServerGroupListEvent e);
-
-	void onClientNeededPermissions(ClientNeededPermissionsEvent e);
-
-    void onClientChannelGroupChanged(ClientChannelGroupChangedEvent e);
-
+	@Override
+	public void fire(TS3Listener listener) {
+		listener.onClientChannelGroupChanged(this);
+	}
 }

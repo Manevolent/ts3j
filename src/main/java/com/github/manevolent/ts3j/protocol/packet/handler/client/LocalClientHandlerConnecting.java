@@ -141,6 +141,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getBody() instanceof PacketBody2Command) {
+            Ts3Debugging.debug(((PacketBody2Command) packet.getBody()).getText());
+
             SingleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplifyOne();
 
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
@@ -186,18 +188,19 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                 getClient().setSecureParameters(Ts3Crypt.cryptoInit2(license, alphaBytes, beta, keyPair.getValue()));
 
+                alphaBytes = null;
+
                 getClient().writePacket(new PacketBody2Command(
                         ProtocolRole.CLIENT,
                         new SingleCommand(
                                 "clientinit",
                                 ProtocolRole.CLIENT,
                                 new CommandSingleParameter("client_nickname", getClient().getNickname()),
-                                new CommandSingleParameter("client_version", "3.1.8 [Build: 1516614607]"),
+                                new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
                                 new CommandSingleParameter("client_platform", "Windows"),
                                 new CommandSingleParameter(
                                         "client_version_sign",
-                                                "LJ5q+KWT4KwBX7oR/9j9A12hBrq5ds5ony99" +
-                                                "f9kepNmqFskhT7gfB51bAJNgAMOzXVCeaItNmc10F2wUNktqCw=="
+                                                "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
                                 ),
                                 new CommandSingleParameter("client_input_hardware", "1"),
                                 new CommandSingleParameter("client_output_hardware", "1"),

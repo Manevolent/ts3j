@@ -324,7 +324,7 @@ public final class QuickLZ
 		int level = (source[0] >>> 2) & 0x3;
 
 		if (level != 1 && level != 3)
-			throw new RuntimeException("Java version only supports level 1 and 3");
+			return source;
 
 		if ((source[0] & 1) != 1)
 		{

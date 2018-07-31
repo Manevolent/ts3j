@@ -1,6 +1,16 @@
 package com.github.manevolent.ts3j.util;
 
 public final class Ts3Debugging {
+    private static boolean enabled;
+
+    public static boolean isEnabled() {
+        return enabled;
+    }
+
+    public static void setEnabled(boolean enabled) {
+        Ts3Debugging.enabled = enabled;
+    }
+
     public static byte[] hexStringToByteArray(String s) {
         int len = s.length();
         byte[] data = new byte[len / 2];
@@ -25,19 +35,23 @@ public final class Ts3Debugging {
     }
 
     public static void info(String message) {
-        System.err.println("[INFO] " + message);
+        if (isEnabled()) {
+            System.err.println("[INFO] " + message);
+        }
     }
 
     public static void debug(Object message) {
-        System.err.println("[DEBUG] " + message.toString());
+        if (isEnabled()) System.err.println("[DEBUG] " + message.toString());
     }
 
     public static void debug(byte[] message) {
-        debug(getHex(message));
+        if (isEnabled()) debug(getHex(message));
     }
 
     public static void debug(String message, Throwable ex) {
-        System.err.println("[DEBUG] " + message);
-        ex.printStackTrace();
+        if (isEnabled()) {
+            System.err.println("[DEBUG] " + message);
+            ex.printStackTrace();
+        }
     }
 }

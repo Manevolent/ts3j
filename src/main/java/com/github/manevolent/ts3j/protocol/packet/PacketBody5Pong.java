@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 public class PacketBody5Pong extends PacketBody {
     private int packetId;

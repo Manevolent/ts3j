@@ -119,7 +119,8 @@ public class PacketTransformation {
         return outputBuffer;
     }
 
-    public byte[] decrypt(PacketHeader header, ByteBuffer buffer, int dataLen) {
+    public byte[] decrypt(PacketHeader header, ByteBuffer buffer, int dataLen)
+            throws InvalidCipherTextException {
         Pair<byte[], byte[]> parameters = computeParameters(header);
 
         byte[] headerWithoutMac = new byte[header.getSize() - MAC_LEN];
@@ -142,11 +143,7 @@ public class PacketTransformation {
 
             len = cipher.processBytes(buffer.array(), header.getSize(), dataLen, result, 0);
             len += cipher.processBytes(buffer.array(), 0, MAC_LEN, result, len);
-            try {
-                len += cipher.doFinal(result, len);
-            } catch (InvalidCipherTextException e) {
-                throw new RuntimeException(e);
-            }
+            len += cipher.doFinal(result, len);
 
             if (len != dataLen)
                 throw new IllegalArgumentException(len + " != " + dataLen);
