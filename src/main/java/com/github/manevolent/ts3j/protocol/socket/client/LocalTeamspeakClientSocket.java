@@ -1,15 +1,18 @@
 package com.github.manevolent.ts3j.protocol.socket.client;
 
+import com.github.manevolent.ts3j.api.Ban;
 import com.github.manevolent.ts3j.api.Channel;
+import com.github.manevolent.ts3j.api.Client;
+import com.github.manevolent.ts3j.api.Permission;
 import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
-import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.event.TS3Event;
 import com.github.manevolent.ts3j.event.TS3Listener;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.identity.Uid;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
@@ -24,8 +27,11 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class LocalTeamspeakClientSocket
         extends AbstractTeamspeakClientSocket
@@ -53,7 +59,7 @@ public class LocalTeamspeakClientSocket
 
     private int acceptingReturnCode = 0;
     private int lastReturnCode = 0;
-    private Map<Integer, CommandProcessor> awaitingCommands = new HashMap<>();
+    private Map<Integer, CommandProcessor> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
         super();
@@ -161,7 +167,7 @@ public class LocalTeamspeakClientSocket
                     0.020F,
                     new MicrophoneTask()
             );
-
+            microphoneThread.setDaemon(true);
             microphoneThread.start();
         } catch (TimeoutException e) {
             setState(ClientConnectionState.DISCONNECTED);
@@ -229,20 +235,24 @@ public class LocalTeamspeakClientSocket
     ) throws IOException, TimeoutException {
         int returnCode;
 
-        ClientCommandResponse<T> response;
+        final ClientCommandResponse<T> response;
 
         // sync may not be necessary here
         synchronized (commandSendLock) {
             returnCode = lastReturnCode++;
             awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, processor));
+            acceptingReturnCode = calculateAcceptingReturnCode();
         }
 
-        command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
-
         try {
+            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
+
             writePacket(new PacketBody2Command(getRole().getOut(), command));
         } catch (Throwable e) {
-            awaitingCommands.remove(returnCode);
+            synchronized (commandSendLock) {
+                awaitingCommands.remove(returnCode);
+                acceptingReturnCode = calculateAcceptingReturnCode();
+            }
 
             throw e;
         }
@@ -255,31 +265,36 @@ public class LocalTeamspeakClientSocket
             Function<SingleCommand, T> processor
     ) throws IOException, TimeoutException {
         int returnCode;
+        final ClientCommandResponse<Iterable<T>> response;
 
         // sync may not be necessary here
         synchronized (commandSendLock) {
             returnCode = lastReturnCode++;
+
+            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
+
+            awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, multiCommands -> {
+                List<SingleCommand> commands = new LinkedList<>();
+                for (MultiCommand multiCommand : multiCommands) commands.addAll(multiCommand.simplify());
+
+                List<T> results = new LinkedList<>();
+                for (SingleCommand command1 : commands)
+                    results.add(processor.apply(command1));
+
+                return results;
+            }));
+
+            acceptingReturnCode = calculateAcceptingReturnCode();
         }
-
-        command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
-
-        ClientCommandResponse<Iterable<T>> response;
-
-        awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, multiCommands -> {
-            List<SingleCommand> commands = new LinkedList<>();
-            for (MultiCommand multiCommand : multiCommands) commands.addAll(multiCommand.simplify());
-
-            List<T> results = new LinkedList<>();
-            for (SingleCommand command1 : commands)
-                results.add(processor.apply(command1));
-
-            return results;
-        }));
 
         try {
             writePacket(new PacketBody2Command(getRole().getOut(), command));
         } catch (Throwable e) {
-            awaitingCommands.remove(returnCode);
+            synchronized (commandSendLock) {
+                awaitingCommands.remove(returnCode);
+
+                acceptingReturnCode = calculateAcceptingReturnCode();
+            }
 
             throw e;
         }
@@ -300,6 +315,13 @@ public class LocalTeamspeakClientSocket
                 microphoneThread = null;
             }
         }
+    }
+
+    private int calculateAcceptingReturnCode() {
+        int lowest = Integer.MAX_VALUE;
+        for (Integer integer : awaitingCommands.keySet()) lowest = Math.min(lowest, integer);
+
+        return lowest;
     }
 
     private class MicrophoneTask implements Runnable {
@@ -349,24 +371,38 @@ public class LocalTeamspeakClientSocket
         public void process(AbstractTeamspeakClientSocket client,
                              MultiCommand multiCommand)
                 throws CommandProcessException {
-            if (multiCommand.getName().equalsIgnoreCase("error")) {
-                SingleCommand command = multiCommand.simplifyFirst();
-                int errorId = Integer.parseInt(command.get("id").getValue());
-
-                switch (errorId) {
-                    case 0:
-                        completeSuccess(commands);
-                        break;
-                    default:
-                        completeFailure(new CommandException(command.get("msg").getValue(), errorId));
-                        break;
-                }
-
-                synchronized (awaitingCommands) {
-                    awaitingCommands.remove(returnCode);
-                }
-            } else
+            if (multiCommand.getName().equalsIgnoreCase("error"))
+               handleError(multiCommand.simplifyOne());
+            else
                 commands.add(multiCommand);
+        }
+
+        @Override
+        public void process(AbstractTeamspeakClientSocket client,
+                            SingleCommand command)
+                throws CommandProcessException {
+            if (command.getName().equalsIgnoreCase("error"))
+                handleError(command);
+            else
+                commands.add(new MultiCommand(command.getName(), ProtocolRole.CLIENT, command));
+        }
+
+        private void handleError(SingleCommand command) {
+            int errorId = Integer.parseInt(command.get("id").getValue());
+
+            synchronized (awaitingCommands) {
+                awaitingCommands.remove(returnCode);
+                acceptingReturnCode = calculateAcceptingReturnCode();
+            }
+
+            switch (errorId) {
+                case 0:
+                    completeSuccess(commands);
+                    break;
+                default:
+                    completeFailure(new CommandException(command.get("msg").getValue(), errorId));
+                    break;
+            }
         }
 
         public int getReturnCode() {
@@ -398,5 +434,251 @@ public class LocalTeamspeakClientSocket
                 throw new CommandProcessException(e);
             }
         }
+    }
+
+    /**
+     * Commands
+     */
+
+    public void addBan(String ip, String name, Uid uid, Integer timeInSeconds, String reason)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        Command banCommand = new SingleCommand("banadd", ProtocolRole.CLIENT);
+
+        if (ip != null) banCommand.add(new CommandSingleParameter("ip", ip));
+        if (name != null) banCommand.add(new CommandSingleParameter("name", name));
+        if (uid != null) banCommand.add(new CommandSingleParameter("uid", uid.toBase64()));
+        if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
+        if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
+
+        executeCommand(banCommand).complete();
+    }
+
+    public Iterable<Ban> banClient(int clid, Integer timeInSeconds, String reason)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        Command banCommand = new SingleCommand("banclient", ProtocolRole.CLIENT);
+
+        banCommand.add(new CommandSingleParameter("clid", Integer.toString(clid)));
+        if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
+        if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
+
+        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+    }
+
+    public Iterable<Ban> banDatabaseClient(int dbid, Integer timeInSeconds, String reason)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        Command banCommand = new SingleCommand("banclient", ProtocolRole.CLIENT);
+
+        banCommand.add(new CommandSingleParameter("cldbid", Integer.toString(dbid)));
+        if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
+        if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
+
+        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+    }
+
+    public Iterable<Ban> banClient(Uid uid, Integer timeInSeconds, String reason)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        Command banCommand = new SingleCommand("banclient", ProtocolRole.CLIENT);
+
+        banCommand.add(new CommandSingleParameter("uid", uid.toBase64()));
+        if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
+        if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
+
+        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+    }
+
+    public Iterable<Ban> banClient(Client client, Integer timeInSeconds, String reason)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        return banClient(client.getId(), timeInSeconds, reason);
+    }
+
+    public void deleteBan(int banId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        Command banCommand = new SingleCommand("deleteban", ProtocolRole.CLIENT);
+
+        banCommand.add(new CommandSingleParameter("banid", Integer.toString(banId)));
+
+        executeCommand(banCommand).complete();
+    }
+
+    public void deleteAllBans()
+            throws IOException, TimeoutException, ExecutionException, InterruptedException, CommandException {
+        executeCommand(new SingleCommand("bandelall", ProtocolRole.CLIENT)).complete();
+    }
+
+    // TODO notifybanlist is returned instead
+    public Iterable<Ban> listBans()
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        Command banCommand = new SingleCommand("banlist", ProtocolRole.CLIENT);
+        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+    }
+
+    public void deleteBan(Ban ban)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        deleteBan(ban.getId());
+    }
+
+    public CommandResponse<Iterable<MultiCommand>> channelAddPermission(int channelId, Permission... permission)
+            throws IOException, TimeoutException {
+        MultiCommand command = new MultiCommand(
+                "channeladdperm",
+                ProtocolRole.CLIENT,
+                Arrays.stream(permission).map(x ->
+                        new SingleCommand("channeladdperm", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("permsid", x.getName()),
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
+
+        return executeCommand(command);
+    }
+
+    public CommandResponse<Iterable<MultiCommand>> channelClientAddPermission(int channelId,
+                                                                              int clientDatabaseId,
+                                                                              Permission... permission)
+            throws IOException, TimeoutException {
+        MultiCommand command = new MultiCommand(
+                "channelclientaddperm",
+                ProtocolRole.CLIENT,
+                Arrays.stream(permission).map(x ->
+                        new SingleCommand("channelclientaddperm", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("permsid", x.getName()),
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(channelId)));
+
+        return executeCommand(command);
+    }
+
+    public void channelClientDeletePermission(int channelId,
+                                                                              int clientDatabaseId,
+                                                                              Permission... permission)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        MultiCommand command = new MultiCommand(
+                "channeldelperm",
+                ProtocolRole.CLIENT,
+                Arrays.stream(permission).map(x ->
+                        new SingleCommand("channeldelperm", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("permsid", x.getName()),
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(channelId)));
+
+        executeCommand(command).complete();
+    }
+
+    /**
+     * Displays a list of clients that are in the channel specified by the cid
+     parameter. Included information is the clientID, client database id, nickname,
+     channelID and client type.
+     Please take note that you can only view clients in channels that you are
+     currently subscribed to.
+
+     Here is a list of the additional display paramters you will receive for
+     each of the possible modifier parameters.
+
+     * @param channelId channel ID to look at
+     * @return list of channel clients
+     * @throws IOException
+     * @throws TimeoutException
+     */
+    // TODO command not found
+    public Iterable<Client> listChannelClients(int channelId)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        Command command = new SingleCommand("channelclientlist", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
+
+        return executeMappedCommand(command, x -> new Client(x.toMap())).get();
+    }
+
+    /**
+     * Moves one or more clients specified with clid to the channel with ID cid. If
+     the target channel has a password, it needs to be specified with cpw. If the
+     channel has no password, the parameter can be omitted.
+     */
+    public void clientMove(int clientId, int channelId, String password)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("clientmove", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
+        if (password != null) command.add(new CommandSingleParameter("cpw", Integer.toString(channelId)));
+        command.add(new CommandSingleParameter("clid", Integer.toString(clientId)));
+
+        executeCommand(command).complete();
+    }
+
+    public void joinChannel(int channelId, String password)
+            throws InterruptedException, ExecutionException, TimeoutException, IOException {
+        clientMove(getClientId(), channelId, password);
+    }
+
+    /**
+     * Moves one or more clients specified with clid to the channel with ID cid. If
+     the target channel has a password, it needs to be specified with cpw. If the
+     channel has no password, the parameter can be omitted.
+     */
+    public Iterable<Channel> listChannels()
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("channellist", ProtocolRole.CLIENT);
+
+        return executeMappedCommand(command, x -> new Channel(x.toMap())).get();
+    }
+
+    /**
+     * Moves one or more clients specified with clid to the channel with ID cid. If
+     the target channel has a password, it needs to be specified with cpw. If the
+     channel has no password, the parameter can be omitted.
+     */
+    public Iterable<Client> listClients()
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("clientlist", ProtocolRole.CLIENT);
+
+        return executeMappedCommand(command, x -> new Client(x.toMap())).get();
+    }
+
+    /**
+     * Moves one or more clients specified with clid to the channel with ID cid. If
+     the target channel has a password, it needs to be specified with cpw. If the
+     channel has no password, the parameter can be omitted.
+     */
+    public void clientPoke(int clientId, String message)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("clientpoke", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("clid", Integer.toString(clientId)));
+        command.add(new CommandSingleParameter("msg", message));
+
+        executeCommand(command).complete();
+    }
+
+    /**
+     * Kicks one or more clients specified with clid from their currently joined
+     channel or from the server, depending on reasonid. The reasonmsg parameter
+     specifies a text message sent to the kicked clients. This parameter is optional
+     and may only have a maximum of 40 characters.
+     */
+    public void kick(Collection<Integer> clientIds, String message)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        MultiCommand command = new MultiCommand(
+                "clientkick",
+                ProtocolRole.CLIENT,
+                clientIds.stream().map(x ->
+                        new SingleCommand("clientkick", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("clid", Integer.toString(x))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("reasonid", Integer.toString(5)));
+        command.add(new CommandSingleParameter("reasonmsg", message));
+
+        executeCommand(command).complete();
     }
 }

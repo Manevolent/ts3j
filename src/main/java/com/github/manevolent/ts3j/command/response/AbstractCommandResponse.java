@@ -1,6 +1,7 @@
 package com.github.manevolent.ts3j.command.response;
 
 import com.github.manevolent.ts3j.command.MultiCommand;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -11,8 +12,7 @@ import java.util.function.Function;
 public abstract class AbstractCommandResponse<T> implements CommandResponse<T> {
     private final Function<Iterable<MultiCommand>, T> processor;
 
-    private CompletableFuture<Iterable<MultiCommand>> future =
-            new CompletableFuture<>();
+    private final CompletableFuture<Iterable<MultiCommand>> future = new CompletableFuture<>();
 
     public AbstractCommandResponse(Function<Iterable<MultiCommand>, T> processor) {
         this.processor = processor;
@@ -36,10 +36,12 @@ public abstract class AbstractCommandResponse<T> implements CommandResponse<T> {
     @Override
     public T get()
             throws ExecutionException, InterruptedException {
+        Ts3Debugging.debug("WAITING ON " + future);
         return map(future.get());
     }
 
     protected void completeSuccess(Iterable<MultiCommand> commands) {
+        Ts3Debugging.debug("SUCCEEDING " + future);
         future.complete(commands);
     }
 

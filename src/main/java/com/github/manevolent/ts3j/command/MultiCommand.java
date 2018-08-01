@@ -11,6 +11,7 @@ import java.util.*;
 public class MultiCommand implements Command {
     private final String name;
     private final ProtocolRole role;
+    private final List<CommandParameter> staticParameters = new LinkedList<>();
     private final List<SingleCommand> commands;
 
     public MultiCommand(String name, ProtocolRole role, SingleCommand... params) {
@@ -35,12 +36,12 @@ public class MultiCommand implements Command {
 
     @Override
     public Iterable<CommandParameter> getParameters() {
-        throw new UnsupportedOperationException();
+        return staticParameters;
     }
 
     @Override
     public void add(CommandParameter parameter) {
-        throw new UnsupportedOperationException();
+        staticParameters.add(parameter);
     }
 
     public List<SingleCommand> simplify() {
@@ -58,9 +59,11 @@ public class MultiCommand implements Command {
 
     @Override
     public String build() {
+        SingleCommand staticSingle = new SingleCommand(getName(), getRole(), staticParameters);
+
         StringBuilder builder = new StringBuilder();
 
-        builder.append(getName().toLowerCase());
+        builder.append(staticSingle.build());
 
         List<SingleCommand> singleCommands = simplify();
 

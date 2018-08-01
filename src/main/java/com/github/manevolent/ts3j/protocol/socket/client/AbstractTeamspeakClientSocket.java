@@ -373,7 +373,8 @@ public abstract class AbstractTeamspeakClientSocket
                     packet.getHeader().getPacketId(),
                     response = new PacketResponse(
                             networkPacket,
-                            networkPacket.getHeader().getType().canResend() ? Integer.MAX_VALUE : 0
+                            sendQueue,
+                            networkPacket.getHeader().getType().canResend() ? 10 : 0
                     )
             );
         else
@@ -560,20 +561,6 @@ public abstract class AbstractTeamspeakClientSocket
                 }
             }
 
-            if (packet.getHeader().getType().canResend() &&
-                    packet.getHeader().getType() != PacketBodyType.INIT1) {
-                // Find if we already acknowledged this packet
-                if (!counter.put(packet.getHeader().getPacketId())) {
-                    Ts3Debugging.debug("[PROTOCOL] Ignoring handling resent packet: " +
-                            packet + " " +
-                            packet.getHeader().getType().name() + " id=" +
-                            packet.getHeader().getPacketId() + " generation=" +
-                            packet.getHeader().getGeneration());
-
-                    continue; // Drop the packet
-                }
-            }
-
             // Find if the packet must be reassembled
             if (packet.getHeader().getType().isSplittable()) {
                 packet = reassemblyQueue.get(packet.getHeader().getType()).put(packet);
@@ -582,7 +569,7 @@ public abstract class AbstractTeamspeakClientSocket
 
             // Find if the packet is itself an acknowledgement
             boolean handle;
-            PacketResponse response;
+            final PacketResponse response;
             switch (packet.getHeader().getType()) {
                 case ACK:
                     response = sendQueue.get(((PacketBody6Ack)packet.getBody()).getPacketId());
@@ -599,6 +586,11 @@ public abstract class AbstractTeamspeakClientSocket
                 default:
                     handle = true;
                     response = null;
+            }
+
+            if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1) {
+                // Find if we already acknowledged this packet
+                handle = handle & counter.put(packet.getHeader().getPacketId());
             }
 
             if (response != null) {
@@ -737,12 +729,14 @@ public abstract class AbstractTeamspeakClientSocket
     private class PacketResponse {
         private final NetworkPacket sentPacket;
         private final CompletableFuture<Packet> future = new CompletableFuture<>();
+        private final Map<Integer, PacketResponse> responsibleQueue;
         private long lastSent = 0L;
         private int tries = 1, maxTries;
         private boolean willResend;
 
-        public PacketResponse(NetworkPacket sentPacket,int maxTries) {
+        public PacketResponse(NetworkPacket sentPacket, Map<Integer, PacketResponse> responsibleQueue, int maxTries) {
             this.sentPacket = sentPacket;
+            this.responsibleQueue = responsibleQueue;
             this.maxTries = maxTries;
             this.lastSent = System.currentTimeMillis();
             this.willResend = maxTries > 0;
@@ -801,6 +795,7 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         public void acknowledge(Packet p) {
+            responsibleQueue.remove(sentPacket.getHeader().getPacketId());
             future.complete(p);
         }
 
