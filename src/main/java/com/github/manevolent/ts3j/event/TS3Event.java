@@ -61,8 +61,12 @@ public interface TS3Event {
 				return new ServerGroupListEvent(command.toMap());
 			case "notifychannelgrouplist": // CLIENT
 				return new ChannelGroupListEvent(command.toMap());
+			case "notifyclientchannelgroupchanged": // CLIENT
+				return new ClientChannelGroupChangedEvent(command.toMap());
 			case "notifyclientneededpermissions": // CLIENT
 				return new ClientNeededPermissionsEvent(command.toMap());
+			case "notifyclientupdated": // CLIENT
+				return new ClientUpdatedEvent(command.toMap());
 			default:
 				throw new IllegalArgumentException("unknown event: " + command.getName());
 		}

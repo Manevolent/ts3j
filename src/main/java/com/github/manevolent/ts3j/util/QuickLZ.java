@@ -324,7 +324,7 @@ public final class QuickLZ
 		int level = (source[0] >>> 2) & 0x3;
 
 		if (level != 1 && level != 3)
-			return source;
+			throw new IllegalArgumentException("unsupported QuickLZ level: " + level);
 
 		if ((source[0] & 1) != 1)
 		{

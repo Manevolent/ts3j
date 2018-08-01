@@ -472,6 +472,8 @@ public abstract class AbstractTeamspeakClientSocket
 
         // Finally, handle compressed bodies
         if (packet.getBody() instanceof PacketBodyCompressed) {
+            Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
+
             byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
 
             packetBuffer = ByteBuffer
@@ -481,8 +483,6 @@ public abstract class AbstractTeamspeakClientSocket
             packet = new Packet(packet.getRole(), packet.getHeader());
 
             packet.readBody(packetBuffer);
-
-            Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
         }
 
         // Return to parent handler
@@ -988,7 +988,6 @@ public abstract class AbstractTeamspeakClientSocket
 
         private boolean putRelative(int index, int generation) {
             Integer existing = buffer[index];
-            Ts3Debugging.debug("putRelative: " + index);
             if (existing == null || existing != generation) {
                 buffer[index] = generation;
                 return true;
