@@ -1,7 +1,7 @@
 package com.github.manevolent.ts3j.protocol.packet;
 
 public enum PacketBodyType {
-    VOICE(0x0, PacketBody0Voice.class, null, false, false, false, false, false),
+    VOICE(0x0, PacketBody0Voice.class, null, true, false, false, false, false),
     VOICE_WHISPER(0x1, PacketBody1VoiceWhisper.class, null, false, false, false, false, false),
     PONG(0x5, PacketBody5Pong.class, null, false, false, false, false, false),
     PING(0x4, PacketBody4Ping.class, PONG, false, false, false, false, false),

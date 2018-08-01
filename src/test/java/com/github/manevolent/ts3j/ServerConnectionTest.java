@@ -41,23 +41,6 @@ public class ServerConnectionTest  {
                     10000L
             );
 
-            client.setMicrophone(new Microphone() {
-                @Override
-                public boolean isReady() {
-                    return true;
-                }
-
-                @Override
-                public CodecType getCodec() {
-                    return CodecType.OPUS_MUSIC;
-                }
-
-                @Override
-                public byte[] provide() {
-                    return new byte[20];
-                }
-            });
-
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
             while (true) {

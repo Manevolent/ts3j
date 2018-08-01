@@ -56,8 +56,8 @@ public class PacketTransformation {
         // ivStruct[0]          = ivStruct[0] xor ((PId & 0xFF00) >> 8)
         // ivStruct[1]          = ivStruct[1] xor ((PId & 0x00FF) >> 0)
 
-        key[0] = (byte) (key[0] ^ ((byte) (header.getPacketId() & 0xFF) >> 8) & 0xFF);
-        key[1] = (byte) (key[1] ^ ((byte) (header.getPacketId() & 0xFF) >> 0) & 0xFF);
+        key[0] = (byte) (key[0] ^ (header.getPacketId() >> 8) & 0xFF);
+        key[1] = (byte) (key[1] ^ (header.getPacketId() >> 0) & 0xFF);
 
         return new Pair<>(key, nonce);
     }

@@ -29,9 +29,9 @@ public class Sha512
         if (offset < 0)
             throw new Exception("offset");
         if (count < 0)
-            throw new Exception("count");
+            throw new Exception("put");
         if (data.length - offset < count)
-            throw new Exception("Requires offset + count <= data.Length");
+            throw new Exception("Requires offset + put <= data.Length");
 
         Array16<Long> block = new Array16<Long>();
         int bytesInBuffer = (int)_totalBytes & (BlockSize - 1);

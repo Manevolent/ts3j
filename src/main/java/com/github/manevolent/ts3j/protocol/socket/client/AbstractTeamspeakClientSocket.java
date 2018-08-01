@@ -4,7 +4,6 @@ import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
-import com.github.manevolent.ts3j.protocol.RingQueue;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
@@ -49,8 +48,8 @@ public abstract class AbstractTeamspeakClientSocket
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueueLow = new ConcurrentHashMap<>();
 
-    private final Map<PacketBodyType, PacketCounter> localSendCounter = new ConcurrentHashMap<>();
-    private final Map<PacketBodyType, RingQueue> remoteQueue = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, LocalCounter> localSendCounter = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, RemoteCounter> remoteSendCounter = new ConcurrentHashMap<>();
 
     private CommandProcessor commandProcessor;
 
@@ -89,12 +88,12 @@ public abstract class AbstractTeamspeakClientSocket
         // Initialize counters
         for (PacketBodyType bodyType : PacketBodyType.values()) {
             if (bodyType == PacketBodyType.INIT1) {
-                localSendCounter.put(bodyType, new PacketCounterZero());
+                localSendCounter.put(bodyType, new LocalCounterZero());
+                remoteSendCounter.put(bodyType, new RemoteCounterZero());
             } else {
-                localSendCounter.put(bodyType, new PacketCounterFull(true));
+                localSendCounter.put(bodyType, new LocalCounterFull(65536, true));
+                remoteSendCounter.put(bodyType, new RemoteCounterFull(65536, 100));
             }
-
-            remoteQueue.put(bodyType, new RingQueue(100, 65536));
         }
     }
 
@@ -216,7 +215,7 @@ public abstract class AbstractTeamspeakClientSocket
             case ACK:
                 counter = new Pair<>(
                         ((PacketBody6Ack)packet.getBody()).getPacketId(),
-                        remoteQueue.get(PacketBodyType.ACK).getGeneration(
+                        remoteSendCounter.get(PacketBodyType.ACK).getGeneration(
                                 ((PacketBody6Ack) packet.getBody()).getPacketId()
                         )
                 );
@@ -224,7 +223,7 @@ public abstract class AbstractTeamspeakClientSocket
             case ACK_LOW:
                 counter = new Pair<>(
                         ((PacketBody7AckLow)packet.getBody()).getPacketId(),
-                        remoteQueue.get(PacketBodyType.ACK_LOW).getGeneration(
+                        remoteSendCounter.get(PacketBodyType.ACK_LOW).getGeneration(
                                 ((PacketBody7AckLow) packet.getBody()).getPacketId()
                         )
                 );
@@ -232,7 +231,7 @@ public abstract class AbstractTeamspeakClientSocket
             case PONG:
                 counter = new Pair<>(
                         ((PacketBody5Pong)packet.getBody()).getPacketId(),
-                        remoteQueue.get(PacketBodyType.PONG).getGeneration(
+                        remoteSendCounter.get(PacketBodyType.PONG).getGeneration(
                                 ((PacketBody5Pong) packet.getBody()).getPacketId()
                         )
                 );
@@ -414,11 +413,6 @@ public abstract class AbstractTeamspeakClientSocket
     private Packet readPacketIntl(NetworkPacket networkPacket) throws IOException {
         if (networkPacket.getHeader() == null) throw new NullPointerException("header");
 
-        RingQueue ring = remoteQueue.get(networkPacket.getHeader().getType());
-        int currentGeneration = ring == null ? 0 : ring.getGeneration(networkPacket.getHeader().getPacketId());
-
-        networkPacket.getHeader().setGeneration(currentGeneration);
-
         Packet packet = new Packet(networkPacket.getHeader().getRole());
         packet.setHeader(networkPacket.getHeader());
 
@@ -432,8 +426,7 @@ public abstract class AbstractTeamspeakClientSocket
                     "packet is fragment, but not splittable"
             );
 
-        boolean encrypted = !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED) &&
-                networkPacket.getHeader().getType().canEncrypt();
+        boolean encrypted = !networkPacket.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED);
 
         if (networkPacket.getHeader().getType().mustEncrypt() && !encrypted)
             throw new IllegalArgumentException(
@@ -446,7 +439,7 @@ public abstract class AbstractTeamspeakClientSocket
         // Decrypt
         if (encrypted) {
             Ts3Debugging.debug("[PROTOCOL] DECRYPT " + networkPacket.getHeader().getType().name()
-                    + " generation=" + currentGeneration);
+                    + " generation=" + networkPacket.getHeader().getGeneration());
 
             try {
                 packetBuffer = ByteBuffer.wrap(
@@ -521,6 +514,15 @@ public abstract class AbstractTeamspeakClientSocket
                 continue;
             }
 
+            // Get packet generation
+            RemoteCounter counter = remoteSendCounter.get(networkPacket.getHeader().getType());
+            int generation = 0;
+            if (counter != null) {
+                generation = counter.getGeneration(networkPacket.getHeader().getPacketId());
+            }
+            networkPacket.getHeader().setGeneration(generation);
+
+            // Read packet (decrypt, decompress, etc)
             Packet packet = readPacketIntl(networkPacket);
 
             // Find if the packet must be acknowledged
@@ -561,16 +563,14 @@ public abstract class AbstractTeamspeakClientSocket
             if (packet.getHeader().getType().canResend() &&
                     packet.getHeader().getType() != PacketBodyType.INIT1) {
                 // Find if we already acknowledged this packet
-                RingQueue ring = remoteQueue.get(packet.getHeader().getType());
-                if (ring.isSet(packet.getHeader().getPacketId())) {
+                if (!counter.put(packet.getHeader().getPacketId())) {
                     Ts3Debugging.debug("[PROTOCOL] Ignoring handling resent packet: " +
                             packet + " " +
                             packet.getHeader().getType().name() + " id=" +
-                            packet.getHeader().getPacketId());
+                            packet.getHeader().getPacketId() + " generation=" +
+                            packet.getHeader().getGeneration());
 
                     continue; // Drop the packet
-                } else {
-                    ring.set(packet.getHeader().getPacketId());
                 }
             }
 
@@ -809,19 +809,249 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
-    private interface PacketCounter {
-        Pair<Integer, Integer> next();
-        int getPacketId();
-        boolean setPacketId(int packetId);
-        int getGenerationId();
-        void setGenerationId(int i);
+    public interface RemoteCounter {
 
-        default Pair<Integer,Integer> current() {
-            return new Pair<>(getPacketId(), getGenerationId());
+        /**
+         * Gets the generation for the specified packet ID.
+         *
+         * @param packetId packet ID
+         * @return expected generation
+         */
+        int getGeneration(int packetId);
+
+        /**
+         * Gets the current generation of the counter.
+         *
+         * @return current generation
+         */
+        int getCurrentGeneration();
+
+        /**
+         * Counts the given packet by its packet ID and stores it in history.
+         *
+         * @param packetId packet to put
+         * @return true if the packet was placed, false otherwise
+         */
+        boolean put(int packetId);
+
+    }
+
+    public static class RemoteCounterZero implements RemoteCounter {
+
+        @Override
+        public int getGeneration(int packetId) {
+            return 0;
+        }
+
+        @Override
+        public int getCurrentGeneration() {
+            return 0;
+        }
+
+        @Override
+        public boolean put(int packetId) {
+            return true;
+        }
+
+    }
+
+    public static class RemoteCounterFull implements RemoteCounter {
+        private final Integer[] buffer; // history buffer
+        private final int bufferSize; // size of the packet history buffer, used for remembering received packets
+        private final int generationSize; // size of the physical window, typically 65536 for a 16-bit/ushort window field
+
+        private Pair<Integer, Integer>
+                bufferStart = new Pair<>(0,0), // position of the start of the buffer in the window
+                bufferEnd; // position of the end of the buffer in the window
+
+        /**
+         * Constructs a new full counter
+         *
+         * @param windowSize size of the packet history buffer, used for remembering received packets
+         * @param generationSize length of any given generation, typically 65536 for a 16-bit/ushort window field
+         */
+        public RemoteCounterFull(int generationSize, int windowSize) { // most often will be 65536, 100
+            if (windowSize >= generationSize) throw new IllegalArgumentException("windowSize > generationSize");
+
+            this.buffer = new Integer[windowSize];
+            this.bufferSize = windowSize;
+            this.generationSize = generationSize;
+
+            this.bufferEnd = new Pair<>(0, windowSize - 1);
+        }
+
+        @Override
+        public int getGeneration(int packetId) {
+            packetId %= generationSize;
+
+            // find if right of the start and within the start's bounds
+            if (packetId >= bufferStart.getValue()
+                    && packetId < bufferStart.getValue() + bufferSize
+                    && packetId < generationSize) {
+                return bufferStart.getKey();
+            }
+
+            // find if left of end and within the end's bounds
+            if (packetId <= bufferEnd.getValue()
+                    && packetId > 0
+                    && packetId > bufferEnd.getValue() - bufferSize
+                    && packetId < generationSize) {
+                return bufferEnd.getKey();
+            }
+
+            // find if outside of buffer to the right
+            if (packetId > bufferEnd.getValue())
+                return bufferEnd.getKey(); // ahead in current generation
+
+            // find if outside of buffer to the left
+            if (packetId < bufferStart.getValue())
+                return bufferEnd.getKey() + 1; // modulated wrap, ahead of current generation
+
+            // should never arrive here.
+            throw new IllegalStateException();
+        }
+
+        @Override
+        public int getCurrentGeneration() {
+            return bufferEnd.getKey();
+        }
+
+        @Override
+        public boolean put(int packetId) {
+            // find if right of the start and within the start's bounds
+            if (packetId >= bufferStart.getValue()
+                    && packetId < bufferStart.getValue() + bufferSize
+                    && packetId < generationSize) {
+                return putRelative(packetId - bufferStart.getValue(), bufferStart.getKey());
+            }
+
+            // find if left of end and within the end's bounds
+            if (packetId <= bufferEnd.getValue()
+                    && packetId >= 0
+                    && packetId > bufferEnd.getValue() - bufferSize
+                    && packetId < generationSize) {
+                return putRelative(bufferSize - (bufferEnd.getValue() - packetId) - 1, bufferEnd.getKey());
+            }
+
+            // distance the start position must move right by
+            int amountMoved = 0;
+
+            // find if outside of buffer to the right
+            if (packetId > bufferEnd.getValue()) { // slide buffer forward uniformly
+                amountMoved = packetId - bufferEnd.getValue();
+            }
+
+            // find if outside of buffer to the left
+            if (packetId < bufferStart.getValue()) { // start wrapping buffer or continue to do so
+                amountMoved =
+                        (generationSize - bufferStart.getValue()) +
+                        packetId + 1;
+
+                amountMoved -= bufferSize;
+            }
+
+            if (amountMoved > 0) { // should always be true
+                int toMove = Math.max(0, bufferSize - amountMoved);
+                Ts3Debugging.debug(Arrays.toString(buffer));
+                if (toMove > 0 && toMove < bufferSize)
+                    System.arraycopy(buffer, amountMoved, buffer, 0, toMove);
+
+                int toNullify = Math.max(0, Math.min(bufferSize, amountMoved));
+                for (int i = bufferSize - toNullify; i < bufferSize; i ++)
+                    buffer[i] = null;
+
+                Ts3Debugging.debug(Arrays.toString(buffer));
+                int bufferStartGeneration = bufferStart.getKey();
+                int bufferStartPosition = bufferStart.getValue();
+
+                bufferStartPosition += amountMoved;
+                if (bufferStartPosition >= generationSize) {
+                    bufferStartPosition %= generationSize;
+                    bufferStartGeneration ++;
+                }
+
+                int bufferEndGeneration;
+                int bufferEndPosition = (bufferStartPosition + bufferSize - 1) % generationSize;
+                if (bufferEndPosition < bufferStartPosition)
+                    bufferEndGeneration = bufferStartGeneration + 1;
+                else
+                    bufferEndGeneration = bufferStartGeneration;
+
+                this.bufferStart = new Pair<>(bufferStartGeneration, bufferStartPosition);
+                this.bufferEnd = new Pair<>(bufferEndGeneration, bufferEndPosition);
+            } else
+                throw new IllegalStateException();
+
+            // if we had to adjust the buffer size, recursively retry put
+            return put(packetId);
+        }
+
+        private boolean putRelative(int index, int generation) {
+            Integer existing = buffer[index];
+            Ts3Debugging.debug("putRelative: " + index);
+            if (existing == null || existing != generation) {
+                buffer[index] = generation;
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 
-    private class PacketCounterZero implements PacketCounter {
+
+
+    public static class RemoteCounterFullModulated extends RemoteCounterFull {
+        private final int modulationSize;
+        private final int modulationsPerGeneration;
+
+        /**
+         * Constructs a new full, modulated counter
+         * This counter is used to sub-modulate a full packet counter, in smaller increments, while still using
+         * the same code in the backend to modulate the physical window.
+         *
+         * @param generationSize length of any given generation, typically 65536 for a 16-bit/ushort window field
+         * @param windowSize     size of the packet history buffer, used for remembering received packets
+         * @param modulationSize slots within the generation to extrapolated generations by
+         */
+        public RemoteCounterFullModulated(int generationSize, int windowSize, int modulationSize) {
+            super(generationSize, windowSize);
+
+            if (generationSize % modulationSize != 0)
+                throw new IllegalArgumentException("modulationSize invalid");
+
+            this.modulationSize = modulationSize;
+            this.modulationsPerGeneration = generationSize / modulationSize;
+        }
+
+        private int calculateSubGeneration(int packetId) {
+            return packetId == 0 ? 0 : (int) Math.floor(packetId / modulationSize);
+        }
+
+        @Override
+        public int getGeneration(int packetId) {
+            return (super.getGeneration(packetId) * modulationsPerGeneration) + calculateSubGeneration(packetId);
+        }
+
+        @Override
+        public int getCurrentGeneration() {
+            // We can't exactly do this right now.  This will require extra work.
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public interface LocalCounter {
+        Pair<Integer, Integer> next();
+        int getPacketId();
+        boolean setPacketId(int packetId);
+        int getGeneration();
+        void setGeneration(int i);
+
+        default Pair<Integer,Integer> current() {
+            return new Pair<>(getPacketId(), getGeneration());
+        }
+    }
+
+    public static class LocalCounterZero implements LocalCounter {
         @Override
         public Pair<Integer, Integer> next() {
             return new Pair<>(0,0);
@@ -838,27 +1068,31 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         @Override
-        public int getGenerationId() {
+        public int getGeneration() {
             return 0;
         }
 
         @Override
-        public void setGenerationId(int i) {
+        public void setGeneration(int i) {
             throw new UnsupportedOperationException();
         }
     }
 
-    private class PacketCounterFull implements PacketCounter {
+    public static class LocalCounterFull implements LocalCounter {
         private final Object sendLock = new Object();
         private final boolean counting;
+        private final int generationSize;
+
         private int packetId = 0;
         private int generationId = 0;
 
-        public PacketCounterFull(boolean counting) {
+        public LocalCounterFull(int generationSize, boolean counting) {
+            this.generationSize = generationSize;
             this.counting = counting;
         }
 
-        public PacketCounterFull(int start, boolean counting) {
+        public LocalCounterFull(int generationSize, int start, boolean counting) {
+            this.generationSize = generationSize;
             this.counting = counting;
 
             setPacketId(start);
@@ -873,9 +1107,9 @@ public abstract class AbstractTeamspeakClientSocket
             synchronized (sendLock) {
                 if (this.packetId == packetId) return false;
 
-                if (packetId >= 65536) {
+                if (packetId >= generationSize) {
                     this.packetId = 0; // wrap around
-                    if (isCounting()) setGenerationId(getGenerationId() + 1);
+                    if (isCounting()) setGeneration(getGeneration() + 1);
                 } else {
                     this.packetId = packetId;
                 }
@@ -884,14 +1118,14 @@ public abstract class AbstractTeamspeakClientSocket
             }
         }
 
-        public int getGenerationId() {
+        public int getGeneration() {
             return generationId;
         }
 
         @Override
-        public void setGenerationId(int i) {
+        public void setGeneration(int i) {
             synchronized (sendLock) {
-                Ts3Debugging.debug("setGenerationId: " + i);
+                Ts3Debugging.debug("setGeneration: " + i);
                 this.generationId = i;
             }
         }

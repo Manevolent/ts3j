@@ -2,6 +2,7 @@ package com.github.manevolent.ts3j.protocol.packet;
 
 import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.nio.ByteBuffer;
 

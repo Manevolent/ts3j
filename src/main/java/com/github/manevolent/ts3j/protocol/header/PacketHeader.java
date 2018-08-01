@@ -107,6 +107,7 @@ public abstract class PacketHeader {
     }
 
     public void setGeneration(int packetGeneration) {
+        if (packetGeneration < 0) throw new IllegalArgumentException("packetGeneration");
         this.packetGeneration = packetGeneration;
     }
 }

@@ -155,7 +155,7 @@ public class FileTransfer extends Wrapper {
 
 	/**
 	 * Returns how many milliseconds have elapsed since the file transfer was first announced to
-	 * the server. This value will count up even if the file transfer has not yet been started,
+	 * the server. This value will put up even if the file transfer has not yet been started,
 	 * but will stop if the transfer has been paused or is complete.
 	 *
 	 * @return the transfer runtime in milliseconds
