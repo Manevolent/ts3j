@@ -59,7 +59,7 @@ public class LocalTeamspeakClientSocket
 
     private int acceptingReturnCode = 0;
     private int lastReturnCode = 0;
-    private Map<Integer, CommandProcessor> awaitingCommands = new ConcurrentHashMap<>();
+    private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
         super();
@@ -204,7 +204,7 @@ public class LocalTeamspeakClientSocket
             processor.process(client, singleCommand);
         } else if (singleCommand.getName().startsWith("notify")) {
             TS3Event event = TS3Event.createEvent(singleCommand);
-            for (TS3Listener listener : listeners) event.fire(listener);
+            listeners.forEach(event::fire);
         } else {
             CommandProcessor awaitingCommandProcessor;
 
@@ -218,49 +218,18 @@ public class LocalTeamspeakClientSocket
     }
 
     public CommandResponse<Iterable<Channel>> getChannels() throws IOException, TimeoutException {
-        return executeMappedCommand(
+        return executeCommand(
                 new SingleCommand("channellist", ProtocolRole.CLIENT),
                 command -> new Channel(command.toMap())
         );
     }
 
-    private CommandResponse<Iterable<MultiCommand>> executeCommand(Command command)
+    private CommandResponse<Iterable<SingleCommand>> executeCommand(Command command)
             throws IOException, TimeoutException {
         return executeCommand(command, Function.identity());
     }
 
-    private <T> CommandResponse<T> executeCommand(
-            Command command,
-            Function<Iterable<MultiCommand>, T> processor
-    ) throws IOException, TimeoutException {
-        int returnCode;
-
-        final ClientCommandResponse<T> response;
-
-        // sync may not be necessary here
-        synchronized (commandSendLock) {
-            returnCode = lastReturnCode++;
-            awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, processor));
-            acceptingReturnCode = calculateAcceptingReturnCode();
-        }
-
-        try {
-            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
-
-            writePacket(new PacketBody2Command(getRole().getOut(), command));
-        } catch (Throwable e) {
-            synchronized (commandSendLock) {
-                awaitingCommands.remove(returnCode);
-                acceptingReturnCode = calculateAcceptingReturnCode();
-            }
-
-            throw e;
-        }
-
-        return response;
-    }
-
-    private <T> CommandResponse<Iterable<T>> executeMappedCommand(
+    private <T> CommandResponse<Iterable<T>> executeCommand(
             Command command,
             Function<SingleCommand, T> processor
     ) throws IOException, TimeoutException {
@@ -277,26 +246,15 @@ public class LocalTeamspeakClientSocket
                 List<SingleCommand> commands = new LinkedList<>();
                 for (MultiCommand multiCommand : multiCommands) commands.addAll(multiCommand.simplify());
 
-                List<T> results = new LinkedList<>();
-                for (SingleCommand command1 : commands)
-                    results.add(processor.apply(command1));
-
-                return results;
-            }));
+                return commands.stream()
+                        .map(processor::apply)
+                        .collect(Collectors.toCollection(LinkedList::new));
+            }, command));
 
             acceptingReturnCode = calculateAcceptingReturnCode();
-        }
 
-        try {
-            writePacket(new PacketBody2Command(getRole().getOut(), command));
-        } catch (Throwable e) {
-            synchronized (commandSendLock) {
-                awaitingCommands.remove(returnCode);
-
-                acceptingReturnCode = calculateAcceptingReturnCode();
-            }
-
-            throw e;
+            if (acceptingReturnCode == returnCode)
+                sendNextCommand();
         }
 
         return response;
@@ -322,6 +280,14 @@ public class LocalTeamspeakClientSocket
         for (Integer integer : awaitingCommands.keySet()) lowest = Math.min(lowest, integer);
 
         return lowest;
+    }
+
+    private void sendNextCommand()
+            throws IOException, TimeoutException {
+        synchronized (commandSendLock) {
+            ClientCommandResponse currentResponse = awaitingCommands.get(acceptingReturnCode);
+            if (currentResponse != null) currentResponse.ensureSent();
+        }
     }
 
     private class MicrophoneTask implements Runnable {
@@ -359,12 +325,18 @@ public class LocalTeamspeakClientSocket
             extends AbstractCommandResponse<T>
             implements CommandProcessor {
         private final int returnCode;
+        private final Command command;
         private final List<MultiCommand> commands = new LinkedList<>();
 
+        private Object sendLock = new Object();
+        private boolean sent = false;
+
         public ClientCommandResponse(int returnCode,
-                                     Function<Iterable<MultiCommand>, T> processor) {
+                                     Function<Iterable<MultiCommand>, T> processor,
+                                     Command command) {
             super(processor);
             this.returnCode = returnCode;
+            this.command = command;
         }
 
         @Override
@@ -372,7 +344,11 @@ public class LocalTeamspeakClientSocket
                              MultiCommand multiCommand)
                 throws CommandProcessException {
             if (multiCommand.getName().equalsIgnoreCase("error"))
-               handleError(multiCommand.simplifyOne());
+                try {
+                    handleError(multiCommand.simplifyOne());
+                } catch (IOException | TimeoutException e) {
+                    throw new CommandProcessException(e);
+                }
             else
                 commands.add(multiCommand);
         }
@@ -382,31 +358,57 @@ public class LocalTeamspeakClientSocket
                             SingleCommand command)
                 throws CommandProcessException {
             if (command.getName().equalsIgnoreCase("error"))
-                handleError(command);
+                try {
+                    handleError(command);
+                } catch (IOException | TimeoutException e) {
+                    throw new CommandProcessException(e);
+                }
             else
                 commands.add(new MultiCommand(command.getName(), ProtocolRole.CLIENT, command));
         }
 
-        private void handleError(SingleCommand command) {
-            int errorId = Integer.parseInt(command.get("id").getValue());
+        private void handleError(SingleCommand command) throws IOException, TimeoutException {
+            try {
+                int errorId = Integer.parseInt(command.get("id").getValue());
 
-            synchronized (awaitingCommands) {
-                awaitingCommands.remove(returnCode);
-                acceptingReturnCode = calculateAcceptingReturnCode();
-            }
+                synchronized (commandSendLock) {
+                    awaitingCommands.remove(returnCode);
+                    acceptingReturnCode = calculateAcceptingReturnCode();
+                }
 
-            switch (errorId) {
-                case 0:
-                    completeSuccess(commands);
-                    break;
-                default:
-                    completeFailure(new CommandException(command.get("msg").getValue(), errorId));
-                    break;
+                switch (errorId) {
+                    case 0:
+                        completeSuccess(commands);
+                        break;
+                    default:
+                        completeFailure(new CommandException(command.get("msg").getValue(), errorId));
+                        break;
+                }
+            } finally {
+                sendNextCommand();
             }
         }
 
         public int getReturnCode() {
             return returnCode;
+        }
+
+        @Override
+        public Command getCommand() {
+            return command;
+        }
+
+        public void ensureSent()
+                throws IOException, TimeoutException {
+            synchronized (sendLock) {
+                if (!sent) {
+                    LocalTeamspeakClientSocket.this.writePacket(
+                            new PacketBody2Command(ProtocolRole.CLIENT, command)
+                    );
+
+                    sent = true;
+                }
+            }
         }
     }
 
@@ -461,7 +463,7 @@ public class LocalTeamspeakClientSocket
         if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
         if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
 
-        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+        return executeCommand(banCommand, command -> new Ban(command.toMap())).get();
     }
 
     public Iterable<Ban> banDatabaseClient(int dbid, Integer timeInSeconds, String reason)
@@ -472,7 +474,7 @@ public class LocalTeamspeakClientSocket
         if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
         if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
 
-        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+        return executeCommand(banCommand, command -> new Ban(command.toMap())).get();
     }
 
     public Iterable<Ban> banClient(Uid uid, Integer timeInSeconds, String reason)
@@ -483,7 +485,7 @@ public class LocalTeamspeakClientSocket
         if (timeInSeconds != null) banCommand.add(new CommandSingleParameter("time", timeInSeconds.toString()));
         if (reason != null) banCommand.add(new CommandSingleParameter("banreason", reason));
 
-        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+        return executeCommand(banCommand, command -> new Ban(command.toMap())).get();
     }
 
     public Iterable<Ban> banClient(Client client, Integer timeInSeconds, String reason)
@@ -509,7 +511,7 @@ public class LocalTeamspeakClientSocket
     public Iterable<Ban> listBans()
             throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
         Command banCommand = new SingleCommand("banlist", ProtocolRole.CLIENT);
-        return executeMappedCommand(banCommand, command -> new Ban(command.toMap())).get();
+        return executeCommand(banCommand, command -> new Ban(command.toMap())).get();
     }
 
     public void deleteBan(Ban ban)
@@ -517,8 +519,8 @@ public class LocalTeamspeakClientSocket
         deleteBan(ban.getId());
     }
 
-    public CommandResponse<Iterable<MultiCommand>> channelAddPermission(int channelId, Permission... permission)
-            throws IOException, TimeoutException {
+    public void channelAddPermission(int channelId, Permission... permission)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
         MultiCommand command = new MultiCommand(
                 "channeladdperm",
                 ProtocolRole.CLIENT,
@@ -531,13 +533,11 @@ public class LocalTeamspeakClientSocket
 
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
 
-        return executeCommand(command);
+        executeCommand(command).complete();
     }
 
-    public CommandResponse<Iterable<MultiCommand>> channelClientAddPermission(int channelId,
-                                                                              int clientDatabaseId,
-                                                                              Permission... permission)
-            throws IOException, TimeoutException {
+    public void channelClientAddPermission(int channelId, int clientDatabaseId, Permission... permission)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
         MultiCommand command = new MultiCommand(
                 "channelclientaddperm",
                 ProtocolRole.CLIENT,
@@ -551,12 +551,10 @@ public class LocalTeamspeakClientSocket
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
         command.add(new CommandSingleParameter("cldbid", Integer.toString(channelId)));
 
-        return executeCommand(command);
+        executeCommand(command).complete();
     }
 
-    public void channelClientDeletePermission(int channelId,
-                                                                              int clientDatabaseId,
-                                                                              Permission... permission)
+    public void channelClientDeletePermission(int channelId, int clientDatabaseId, Permission... permission)
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         MultiCommand command = new MultiCommand(
                 "channeldelperm",
@@ -596,7 +594,7 @@ public class LocalTeamspeakClientSocket
 
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
 
-        return executeMappedCommand(command, x -> new Client(x.toMap())).get();
+        return executeCommand(command, x -> new Client(x.toMap())).get();
     }
 
     /**
@@ -629,7 +627,7 @@ public class LocalTeamspeakClientSocket
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         Command command = new SingleCommand("channellist", ProtocolRole.CLIENT);
 
-        return executeMappedCommand(command, x -> new Channel(x.toMap())).get();
+        return executeCommand(command, x -> new Channel(x.toMap())).get();
     }
 
     /**
@@ -641,7 +639,7 @@ public class LocalTeamspeakClientSocket
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         Command command = new SingleCommand("clientlist", ProtocolRole.CLIENT);
 
-        return executeMappedCommand(command, x -> new Client(x.toMap())).get();
+        return executeCommand(command, x -> new Client(x.toMap())).get();
     }
 
     /**

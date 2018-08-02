@@ -36,12 +36,10 @@ public abstract class AbstractCommandResponse<T> implements CommandResponse<T> {
     @Override
     public T get()
             throws ExecutionException, InterruptedException {
-        Ts3Debugging.debug("WAITING ON " + future);
         return map(future.get());
     }
 
     protected void completeSuccess(Iterable<MultiCommand> commands) {
-        Ts3Debugging.debug("SUCCEEDING " + future);
         future.complete(commands);
     }
 

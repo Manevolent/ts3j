@@ -41,10 +41,14 @@ public abstract class AbstractTeamspeakClientSocket
             0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31
     };
 
-    private final Object connectionStateLock = new Object();
-    private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
-    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
     private final Map<String, Object> clientOptions = new ConcurrentHashMap<>();
+
+    private final Object connectionStateLock = new Object();
+
+    private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
+
+    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
+
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueueLow = new ConcurrentHashMap<>();
 
@@ -65,8 +69,9 @@ public abstract class AbstractTeamspeakClientSocket
     private long lastPing;
 
     private final NetworkReader networkReader = new NetworkReader();
-    private final NetworkHandler networkHandler = new NetworkHandler();
     private Thread networkThread = null;
+
+    private final NetworkHandler networkHandler = new NetworkHandler();
     private Thread handlerThread = null;
 
     private boolean reading = false;
@@ -365,11 +370,28 @@ public abstract class AbstractTeamspeakClientSocket
         );
 
         // Find if the packet must be acknowledged and create a promise for that action
-        boolean willAcknowledge = packet.getHeader().getType().getAcknolwedgedBy() != null;
+        boolean willWaitForAck =
+                packet.getHeader().getType().getAcknolwedgedBy() != null &&
+                        networkPacket.getHeader().getType() != PacketBodyType.PING;
+
         final PacketResponse response;
 
-        if (willAcknowledge)
-            sendQueue.put(
+        if (willWaitForAck) {
+            Map<Integer, PacketResponse> responsibleQueue;
+
+            switch (packet.getHeader().getType()) {
+                case COMMAND:
+                    responsibleQueue = sendQueue;
+                    break;
+                case COMMAND_LOW:
+                    responsibleQueue = sendQueueLow;
+                    break;
+                default:
+                    throw new IllegalArgumentException("no ack queue exists for " +
+                            packet.getHeader().getType().name());
+            }
+
+            responsibleQueue.put(
                     packet.getHeader().getPacketId(),
                     response = new PacketResponse(
                             networkPacket,
@@ -377,7 +399,7 @@ public abstract class AbstractTeamspeakClientSocket
                             networkPacket.getHeader().getType().canResend() ? 10 : 0
                     )
             );
-        else
+        } else
             response = null;
 
         Ts3Debugging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
@@ -385,7 +407,7 @@ public abstract class AbstractTeamspeakClientSocket
         writeNetworkPacket(networkPacket);
 
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
-        if (response != null && networkPacket.getHeader().getType() != PacketBodyType.PING) {
+        if (response != null) {
             while (response.getRetries() < response.getMaxTries()) {
                 try {
                     if (getState() == ClientConnectionState.DISCONNECTED)
@@ -535,8 +557,6 @@ public abstract class AbstractTeamspeakClientSocket
             if (ackType != null) {
                 switch (ackType) {
                     case ACK:
-                        Ts3Debugging.debug("[PROTOCOL] Acknowledge " + packet + " " + packet.getHeader().getType().name()
-                                + " id=" + packet.getHeader().getPacketId());
                         writePacket(new PacketBody6Ack(getRole().getOut(), packet.getHeader().getPacketId()));
                         break;
                     case ACK_LOW:
@@ -567,20 +587,20 @@ public abstract class AbstractTeamspeakClientSocket
                 if (packet == null) continue;
             }
 
-            // Find if the packet is itself an acknowledgement
+            // Find if the packet is itself an acknowledgement (ACK or ACK_LOW)
             boolean handle;
             final PacketResponse response;
             switch (packet.getHeader().getType()) {
                 case ACK:
                     response = sendQueue.get(((PacketBody6Ack)packet.getBody()).getPacketId());
+                    if (response == null)
+                        Ts3Debugging.debug("Unrecognized ACK: " + ((PacketBody6Ack)packet.getBody()).getPacketId());
                     handle = false;
                     break;
                 case ACK_LOW:
                     response = sendQueueLow.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
-                    handle = false;
-                    break;
-                case PONG:
-                    response = null;
+                    if (response == null)
+                        Ts3Debugging.debug("Unrecognized ACK_LOW: " + ((PacketBody6Ack)packet.getBody()).getPacketId());
                     handle = false;
                     break;
                 default:
@@ -590,14 +610,14 @@ public abstract class AbstractTeamspeakClientSocket
 
             if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1) {
                 // Find if we already acknowledged this packet
-                handle = handle & counter.put(packet.getHeader().getPacketId());
+                if (counter != null)
+                    handle = handle & counter.put(packet.getHeader().getPacketId());
             }
 
             if (response != null) {
                 response.acknowledge(packet);
-            } else if (handle) {
-                return packet;
             }
+            if (handle) return packet;
         }
 
         throw new IllegalStateException("no longer reading");
@@ -947,7 +967,6 @@ public abstract class AbstractTeamspeakClientSocket
 
             if (amountMoved > 0) { // should always be true
                 int toMove = Math.max(0, bufferSize - amountMoved);
-                Ts3Debugging.debug(Arrays.toString(buffer));
                 if (toMove > 0 && toMove < bufferSize)
                     System.arraycopy(buffer, amountMoved, buffer, 0, toMove);
 
@@ -955,7 +974,6 @@ public abstract class AbstractTeamspeakClientSocket
                 for (int i = bufferSize - toNullify; i < bufferSize; i ++)
                     buffer[i] = null;
 
-                Ts3Debugging.debug(Arrays.toString(buffer));
                 int bufferStartGeneration = bufferStart.getKey();
                 int bufferStartPosition = bufferStart.getValue();
 
@@ -991,8 +1009,6 @@ public abstract class AbstractTeamspeakClientSocket
             }
         }
     }
-
-
 
     public static class RemoteCounterFullModulated extends RemoteCounterFull {
         private final int modulationSize;
@@ -1035,8 +1051,10 @@ public abstract class AbstractTeamspeakClientSocket
 
     public interface LocalCounter {
         Pair<Integer, Integer> next();
+
         int getPacketId();
         boolean setPacketId(int packetId);
+
         int getGeneration();
         void setGeneration(int i);
 

@@ -53,6 +53,8 @@ public class PacketBody0Voice extends PacketBody {
 
     @Override
     public void read(ByteBuffer buffer) {
+        Ts3Debugging.debug(buffer.array());
+
         packetId = buffer.getShort() & 0x0000FFFF;
 
         if (getRole() == ProtocolRole.SERVER)
