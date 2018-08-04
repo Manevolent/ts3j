@@ -60,12 +60,16 @@ public class LocalTeamspeakClientSocket
 
     private int acceptingReturnCode = 0;
     private int lastReturnCode = 0;
+
+    private Integer serverId = null;
+
     private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
         super();
 
         namedProcessors.put("initserver", new InitServerHandler());
+
         namedProcessors.put("channellist", new CommandProcessor() {
             @Override
             public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
@@ -74,6 +78,7 @@ public class LocalTeamspeakClientSocket
                 for (TS3Listener listener : listeners) listener.onChannelList(channelListEvent);
             }
         });
+
         namedProcessors.put("channellistfinished", new ChannelListFinishedHandler());
     }
 
@@ -446,6 +451,8 @@ public class LocalTeamspeakClientSocket
                 throws CommandProcessException {
             try {
                 setClientId(Integer.parseInt(singleCommand.get("aclid").getValue()));
+                setNickname(singleCommand.get("acn").getValue());
+                serverId = Integer.parseInt(singleCommand.get("virtualserver_id").getValue());
             } catch (Exception e) {
                 throw new CommandProcessException(e);
             }
@@ -619,7 +626,8 @@ public class LocalTeamspeakClientSocket
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
 
-        command.add(new CommandSingleParameter("targetmode", Integer.toString(1)));
+        command.add(new CommandSingleParameter("targetmode", Integer.toString(3)));
+        command.add(new CommandSingleParameter("target", Integer.toString(serverId)));
         command.add(new CommandSingleParameter("msg", message));
 
         executeCommand(command).complete();
@@ -648,7 +656,7 @@ public class LocalTeamspeakClientSocket
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
 
-        command.add(new CommandSingleParameter("targetmode", Integer.toString(3)));
+        command.add(new CommandSingleParameter("targetmode", Integer.toString(1)));
         command.add(new CommandSingleParameter("target", Integer.toString(clientId)));
         command.add(new CommandSingleParameter("msg", message));
 

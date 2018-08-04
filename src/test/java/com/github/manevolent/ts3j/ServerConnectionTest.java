@@ -40,6 +40,8 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
+            client.sendServerMessage("Heyyyy");
+
             while (true) {
                 Thread.sleep(1000L);
 

@@ -129,6 +129,10 @@ public class MultiCommand implements Command {
             singleCommands.add(command);
         }
 
+        // Make sure is empty if needed
+        if (singleCommands.size() <= 0)
+            singleCommands.add(new SingleCommand(label, role));
+
         return new MultiCommand(label, role, singleCommands);
     }
 }
