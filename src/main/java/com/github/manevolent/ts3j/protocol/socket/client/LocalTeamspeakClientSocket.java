@@ -9,6 +9,7 @@ import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
+import com.github.manevolent.ts3j.event.ChannelListEvent;
 import com.github.manevolent.ts3j.event.TS3Event;
 import com.github.manevolent.ts3j.event.TS3Listener;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
@@ -65,7 +66,14 @@ public class LocalTeamspeakClientSocket
         super();
 
         namedProcessors.put("initserver", new InitServerHandler());
-        namedProcessors.put("channellist", new NullRouteHandler());
+        namedProcessors.put("channellist", new CommandProcessor() {
+            @Override
+            public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
+                    throws CommandProcessException {
+                ChannelListEvent channelListEvent = new ChannelListEvent(singleCommand.toMap());
+                for (TS3Listener listener : listeners) listener.onChannelList(channelListEvent);
+            }
+        });
         namedProcessors.put("channellistfinished", new ChannelListFinishedHandler());
     }
 
@@ -413,7 +421,15 @@ public class LocalTeamspeakClientSocket
     }
 
     private class ChannelListFinishedHandler implements CommandProcessor {
-
+        @Override
+        public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
+                throws CommandProcessException {
+            try {
+                setState(ClientConnectionState.CONNECTED);
+            } catch (Exception e) {
+                throw new CommandProcessException(e);
+            }
+        }
     }
 
     private class NullRouteHandler implements CommandProcessor {
@@ -430,8 +446,6 @@ public class LocalTeamspeakClientSocket
                 throws CommandProcessException {
             try {
                 setClientId(Integer.parseInt(singleCommand.get("aclid").getValue()));
-
-                setState(ClientConnectionState.CONNECTED);
             } catch (Exception e) {
                 throw new CommandProcessException(e);
             }
@@ -595,6 +609,50 @@ public class LocalTeamspeakClientSocket
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
 
         return executeCommand(command, x -> new Client(x.toMap())).get();
+    }
+
+    /**
+     * Sends a text message a specified target. The type of the target is determined by targetmode while target
+     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     */
+    public void sendServerMessage(String message)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("targetmode", Integer.toString(1)));
+        command.add(new CommandSingleParameter("msg", message));
+
+        executeCommand(command).complete();
+    }
+
+    /**
+     * Sends a text message a specified target. The type of the target is determined by targetmode while target
+     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     */
+    public void sendChannelMessage(int channelId, String message)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("targetmode", Integer.toString(2)));
+        command.add(new CommandSingleParameter("target", Integer.toString(channelId)));
+        command.add(new CommandSingleParameter("msg", message));
+
+        executeCommand(command).complete();
+    }
+
+    /**
+     * Sends a text message a specified target. The type of the target is determined by targetmode while target
+     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     */
+    public void sendPrivateMessage(int clientId, String message)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("targetmode", Integer.toString(3)));
+        command.add(new CommandSingleParameter("target", Integer.toString(clientId)));
+        command.add(new CommandSingleParameter("msg", message));
+
+        executeCommand(command).complete();
     }
 
     /**

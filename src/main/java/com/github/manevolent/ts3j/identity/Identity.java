@@ -76,7 +76,8 @@ public class Identity {
 
             if (curr > best)
             {
-                Ts3Debugging.debug("Improved identity security level: from " + best + " to " + curr);
+                Ts3Debugging.debug("Improved identity security level: from " + best + " to " + curr
+                        + " (" + keyOffset + ")");
                 keyOffset = lastCheckedKeyOffset;
                 best = curr;
             }
