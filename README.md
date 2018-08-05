@@ -38,7 +38,7 @@ client.setNickname(nickname);
 client.connect(
    new InetSocketAddress(
         InetAddress.getByName(address),
-        port
+        port // UDP client port, Teamspeak3 client uses 9987
    ),
    password,
    10000L
