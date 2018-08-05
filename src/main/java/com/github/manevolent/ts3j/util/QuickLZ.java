@@ -12,6 +12,8 @@ package com.github.manevolent.ts3j.util;// QuickLZ data compression library
 //
 // Version: 1.5.0 final
 
+import java.util.Base64;
+
 public final class QuickLZ
 {
     // Streaming mode not supported
@@ -310,6 +312,8 @@ public final class QuickLZ
 	static public byte[] decompress(byte[] source)
 	{
 		int size = (int)sizeDecompressed(source);
+        if (size > 65536) throw new IllegalArgumentException("decompression too large: " + size + " (" + Base64.getEncoder().encodeToString(source) + ")");
+
 		int src = headerLen(source);
 		int dst = 0;
 		long cword_val = 1;
