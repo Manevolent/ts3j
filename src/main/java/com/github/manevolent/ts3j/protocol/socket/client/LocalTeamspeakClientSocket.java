@@ -342,7 +342,6 @@ public class LocalTeamspeakClientSocket
                 // TODO
                 // Set a state and send a muted event
             } else if (microphone.isReady()) {
-                voice.setClientId(getClientId()); // not necessary probably
                 voice.setCodecType(microphone.getCodec());
                 voice.setCodecData(microphone.provide());
 
