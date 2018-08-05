@@ -7,8 +7,6 @@ If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the g
 
 TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
 
-This project is currently not completed, but is being actively worked on until it is stable and working.  I'm very open to suggestions and contributions should you want to make any, so we can make this a reality faster.
-
 # Current Status
 
 It should work, I'm using it on my bot
