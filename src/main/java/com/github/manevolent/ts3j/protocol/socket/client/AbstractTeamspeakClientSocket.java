@@ -499,6 +499,7 @@ public abstract class AbstractTeamspeakClientSocket
 
         // Finally, handle compressed bodies
         if (packet.getBody() instanceof PacketBodyCompressed) {
+
             Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
 
             byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
@@ -553,6 +554,14 @@ public abstract class AbstractTeamspeakClientSocket
                 generation = counter.getGeneration(networkPacket.getHeader().getPacketId());
             }
             networkPacket.getHeader().setGeneration(generation);
+
+
+            // Ignore voice and whisper, there is a decompression issue with them
+            if (networkPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) && (
+                    networkPacket.getHeader().getType() == PacketBodyType.VOICE ||
+                    networkPacket.getHeader().getType() == PacketBodyType.VOICE_WHISPER
+            ))
+                continue;
 
             // Read packet (decrypt, decompress, etc)
             Packet packet = readPacketIntl(networkPacket);
