@@ -768,6 +768,23 @@ public class LocalTeamspeakClientSocket
         executeCommand(command).complete();
     }
 
+    public void subscribeAll() throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("channelsubscribeall", ProtocolRole.CLIENT);
+        executeCommand(command).get();
+    }
+
+    public Client getClientInfo(int clientId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand(
+                "clientinfo",
+                ProtocolRole.CLIENT,
+                new CommandSingleParameter("clid", Integer.toString(clientId))
+        );
+
+        Iterable<Client> clients = executeCommand(command, x -> new Client(x.toMap())).get();
+        return clients.iterator().next();
+    }
+
     public void disconnect()
             throws
             IOException, TimeoutException,
@@ -785,6 +802,5 @@ public class LocalTeamspeakClientSocket
                 break;
         }
     }
-
 
 }
