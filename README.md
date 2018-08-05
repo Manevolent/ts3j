@@ -9,4 +9,6 @@ TS3J is formatted and stubbed for server support, and no logic has been written.
 
 This project is currently not completed, but is being actively worked on until it is stable and working.  I'm very open to suggestions and contributions should you want to make any, so we can make this a reality faster.
 
-I'll add more documentation on the API itself as we near a usable, stable client.
+# Current Status
+
+It should work, I'm using it on my bot
