@@ -7,6 +7,22 @@ If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the g
 
 TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
 
-# Current Status
+# Usage
 
-It should work, I'm using it on my bot
+```
+client = new LocalTeamspeakClientSocket();
+
+// Set up client
+client.setIdentity(identity);
+client.addListener(listener);
+client.setNickname(nickname);
+
+client.connect(
+   new InetSocketAddress(
+        InetAddress.getByName(address),
+        port
+   ),
+   password,
+   10000L
+);
+```
