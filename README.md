@@ -7,6 +7,44 @@ If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the g
 
 TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
 
-This project is currently not completed, but is being actively worked on until it is stable and working.  I'm very open to suggestions and contributions should you want to make any, so we can make this a reality faster.
+# Maven
 
-I'll add more documentation on the API itself as we near a usable, stable client.
+If you want the latest `-SNAPSHOT`:
+
+```
+	<repositories>
+		<repository>
+		    <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+		</repository>
+	</repositories>
+   <dependency>
+	    <groupId>com.github.manevolent</groupId>
+	    <artifactId>ts3j</artifactId>
+	    <version>-SNAPSHOT</version>
+	</dependency>
+```
+
+# Usage
+
+```
+client = new LocalTeamspeakClientSocket();
+
+// Set up client
+client.setIdentity(identity);
+client.addListener(listener);
+client.setNickname(nickname);
+
+client.connect(
+   new InetSocketAddress(
+        InetAddress.getByName(address),
+        port // UDP client port, Teamspeak3 client uses 9987
+   ),
+   password,
+   10000L
+);
+```
+
+Note that while `connect()` is processing, you'll receive channels registered and clients currently connected to the server.  It is important that you use the listener to collect these, and track their changes through the other listener event calls.
+
+You can interact with the server using the commands on the `client` object similarly to TS3Query.
