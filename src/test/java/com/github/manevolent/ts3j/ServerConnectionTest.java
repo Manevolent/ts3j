@@ -3,14 +3,18 @@ package com.github.manevolent.ts3j;
 import com.github.manevolent.ts3j.api.Client;
 import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.enums.CodecType;
+import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
 
@@ -27,24 +31,6 @@ public class ServerConnectionTest  {
 
             LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
 
-            client.setMicrophone(new Microphone() {
-                @Override
-                public boolean isReady() {
-                    return true;
-                }
-
-                @Override
-                public CodecType getCodec() {
-                    return CodecType.OPUS_MUSIC;
-                }
-
-                @Override
-                public byte[] provide() {
-                    System.err.println("Provide.");
-                    return new byte[0];
-                }
-            });
-
             client.setIdentity(identity);
 
             client.setNickname("Hello from Java");
@@ -58,11 +44,121 @@ public class ServerConnectionTest  {
                     10000L
             );
 
-            client.sendServerMessage("\u26D4 You are not listening to this channel.");
+            client.addListener(new TS3Listener() {
+                @Override
+                public void onTextMessage(TextMessageEvent e) {
+
+                }
+
+                @Override
+                public void onClientJoin(ClientJoinEvent e) {
+
+                }
+
+                @Override
+                public void onClientLeave(ClientLeaveEvent e) {
+
+                }
+
+                @Override
+                public void onServerEdit(ServerEditedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelEdit(ChannelEditedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e) {
+
+                }
+
+                @Override
+                public void onClientMoved(ClientMovedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelCreate(ChannelCreateEvent e) {
+
+                }
+
+                @Override
+                public void onChannelDeleted(ChannelDeletedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelMoved(ChannelMovedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelPasswordChanged(ChannelPasswordChangedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelList(ChannelListEvent e) {
+
+                }
+
+                @Override
+                public void onPrivilegeKeyUsed(PrivilegeKeyUsedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelGroupList(ChannelGroupListEvent e) {
+
+                }
+
+                @Override
+                public void onServerGroupList(ServerGroupListEvent e) {
+
+                }
+
+                @Override
+                public void onClientNeededPermissions(ClientNeededPermissionsEvent e) {
+
+                }
+
+                @Override
+                public void onClientChannelGroupChanged(ClientChannelGroupChangedEvent e) {
+
+                }
+
+                @Override
+                public void onClientChanged(ClientUpdatedEvent e) {
+
+                }
+
+                @Override
+                public void onDisconnected(DisconnectedEvent e) {
+
+                }
+
+                @Override
+                public void onChannelSubscribed(ChannelSubscribedEvent e) {
+                    try {
+                        client.getChannelInfo(e.getChannelId());
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    } catch (TimeoutException e1) {
+                        e1.printStackTrace();
+                    } catch (ExecutionException e1) {
+                        e1.printStackTrace();
+                    } catch (InterruptedException e1) {
+                        e1.printStackTrace();
+                    }
+                }
+            });
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            client.setNickname("gjklsdfkjlgdsfgd2");
+            client.subscribeAll();
 
             client.waitForState(ClientConnectionState.DISCONNECTED, 10000L);
         } catch (Throwable ex) {

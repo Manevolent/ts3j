@@ -26,9 +26,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,6 +46,7 @@ public class LocalTeamspeakClientSocket
     private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
 
     private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
+    private final ExecutorService commandExecutionService = Executors.newCachedThreadPool();
     private final Object commandSendLock = new Object();
 
 
@@ -239,7 +238,8 @@ public class LocalTeamspeakClientSocket
             processor.process(client, singleCommand);
         } else if (singleCommand.getName().startsWith("notify")) {
             TS3Event event = TS3Event.createEvent(singleCommand);
-            listeners.forEach(event::fire);
+
+            commandExecutionService.submit(() -> listeners.forEach(event::fire));
         } else {
             CommandProcessor awaitingCommandProcessor;
 
@@ -813,6 +813,17 @@ public class LocalTeamspeakClientSocket
             return new Client(map);
         }).get();
         return clients.iterator().next();
+    }
+
+    public Channel getChannelInfo(int channelId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand(
+                "channelinfo",
+                ProtocolRole.CLIENT,
+                new CommandSingleParameter("cid", Integer.toString(channelId))
+        );
+
+        return executeCommand(command, x -> new Channel(x.toMap())).get().iterator().next();
     }
 
     public void disconnect()

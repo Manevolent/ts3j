@@ -67,6 +67,8 @@ public interface TS3Event {
 				return new ClientNeededPermissionsEvent(command.toMap());
 			case "notifyclientupdated": // CLIENT
 				return new ClientUpdatedEvent(command.toMap());
+            case "notifychannelsubscribed": // CLIENT
+                return new ChannelSubscribedEvent(command.toMap());
 			default:
 				throw new IllegalArgumentException("unknown event: " + command.getName());
 		}
