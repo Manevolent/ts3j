@@ -473,7 +473,10 @@ public class LocalTeamspeakClientSocket
                 throws CommandProcessException {
             try {
                 setClientId(Integer.parseInt(singleCommand.get("aclid").getValue()));
-                setNickname(singleCommand.get("acn").getValue());
+
+                // Must use super because we're probably in RETRIEVING_DATA state and we'd block on this.
+                LocalTeamspeakClientSocket.super.setNickname(singleCommand.get("acn").getValue());
+
                 serverId = Integer.parseInt(singleCommand.get("virtualserver_id").getValue());
             } catch (Exception e) {
                 throw new CommandProcessException(e);
