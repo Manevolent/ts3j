@@ -781,7 +781,11 @@ public class LocalTeamspeakClientSocket
                 new CommandSingleParameter("clid", Integer.toString(clientId))
         );
 
-        Iterable<Client> clients = executeCommand(command, x -> new Client(x.toMap())).get();
+        Iterable<Client> clients = executeCommand(command, x -> {
+            Map<String, String> map = x.toMap();
+            map.put("clid", Integer.toString(clientId));
+            return new Client(map);
+        }).get();
         return clients.iterator().next();
     }
 
