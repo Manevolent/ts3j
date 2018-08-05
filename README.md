@@ -26,3 +26,7 @@ client.connect(
    10000L
 );
 ```
+
+Note that while `connect()` is processing, you'll receive channels registered and clients currently connected to the server.  It is important that you use the listener to collect these, and track their changes through the other listener event calls.
+
+You can interact with the server using the commands on the `client` object similarly to TS3Query.
