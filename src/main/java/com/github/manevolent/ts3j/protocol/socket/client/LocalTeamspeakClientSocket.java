@@ -330,27 +330,29 @@ public class LocalTeamspeakClientSocket
         public void run() {
             PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
             Microphone microphone;
-            while (isConnected()) {
-                // Attempt to get the current microphone instance, saving it in a variable to prevent
-                // any race conditions by accessing the parent class' this.microphone.
-                if ((microphone = LocalTeamspeakClientSocket.this.microphone) == null)
-                    continue;
 
-                if (microphone.isMuted()) {
-                    // TODO
-                    // Set a state and send a muted event
-                } else if (microphone.isReady()) {
-                    voice.setCodecType(microphone.getCodec());
-                    voice.setCodecData(microphone.provide());
+            if (!isConnected()) return;
 
-                    try {
-                        writePacket(voice);
-                    } catch (IOException e) {
-                        // All we are really concerned about here is a disconnection event, in which case the loop
-                        // will exit.
-                    } catch (TimeoutException e) {
-                        // Not really possible, as we might expect, voice doesn't have ACKs.
-                    }
+            // Attempt to get the current microphone instance, saving it in a variable to prevent
+            // any race conditions by accessing the parent class' this.microphone.
+            if ((microphone = LocalTeamspeakClientSocket.this.microphone) == null)
+                return;
+
+            if (microphone.isMuted()) {
+                // TODO
+                // Set a state and send a muted event
+            } else if (microphone.isReady()) {
+                voice.setClientId(getClientId()); // not necessary probably
+                voice.setCodecType(microphone.getCodec());
+                voice.setCodecData(microphone.provide());
+
+                try {
+                    writePacket(voice);
+                } catch (IOException e) {
+                    // All we are really concerned about here is a disconnection event, in which case the loop
+                    // will exit.
+                } catch (TimeoutException e) {
+                    // Not really possible; as we might expect, voice doesn't have ACKs.
                 }
             }
         }

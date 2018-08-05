@@ -38,9 +38,9 @@ public class ServerConnectionTest  {
                     10000L
             );
 
-            client.sendServerMessage("\u26D4");
+            client.sendServerMessage("\u26D4 You are not listening to this channel.");
 
-                    assertEquals(client.getState(), ClientConnectionState.CONNECTED);
+            assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
             for (Client c : client.listClients()) {
                 client.getClientInfo(c.getId());
