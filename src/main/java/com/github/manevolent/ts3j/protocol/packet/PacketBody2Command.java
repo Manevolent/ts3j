@@ -48,6 +48,6 @@ public class PacketBody2Command extends PacketBody {
 
     @Override
     public int getSize() {
-        return text.length();
+        return text.getBytes(Charset.forName("UTF8")).length;
     }
 }

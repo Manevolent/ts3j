@@ -38,7 +38,9 @@ public class ServerConnectionTest  {
                     10000L
             );
 
-            assertEquals(client.getState(), ClientConnectionState.CONNECTED);
+            client.sendServerMessage("\u26D4");
+
+                    assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
             for (Client c : client.listClients()) {
                 client.getClientInfo(c.getId());
