@@ -37,6 +37,8 @@ import java.util.concurrent.*;
 public abstract class AbstractTeamspeakClientSocket
         extends AbstractTeamspeakSocket
         implements TeamspeakClientSocket {
+    public static long TIMEOUT = 30000L;
+
     private static final byte[] INIT1_MAC  = new byte[] {
             0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31
     };
@@ -66,6 +68,7 @@ public abstract class AbstractTeamspeakClientSocket
     private int clientId = 0;
     private int packetId = 0;
 
+    private long lastResponse;
     private long lastPing;
 
     private final NetworkReader networkReader = new NetworkReader();
@@ -396,7 +399,7 @@ public abstract class AbstractTeamspeakClientSocket
                     response = new PacketResponse(
                             networkPacket,
                             sendQueue,
-                            networkPacket.getHeader().getType().canResend() ? 10 : 0
+                            networkPacket.getHeader().getType().canResend() ? 30 : 0
                     )
             );
         } else
@@ -408,13 +411,14 @@ public abstract class AbstractTeamspeakClientSocket
 
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
         if (response != null) {
-            while (response.getRetries() < response.getMaxTries()) {
+            while (response.getRetries() < response.getMaxTries() &&
+                    getState() != ClientConnectionState.DISCONNECTED) {
                 try {
                     if (getState() == ClientConnectionState.DISCONNECTED)
                         throw new IllegalStateException("no longer connected");
 
                     // Wait one cycle for an ACK
-                    response.waitForAcknowledgement(1000);
+                    response.waitForAcknowledgement(1000L);
                     break;
                 } catch (TimeoutException e) {
                     if (response.willResend())
@@ -530,8 +534,13 @@ public abstract class AbstractTeamspeakClientSocket
                 networkPacket = readNetworkPacket((int) timeout);
             } catch (SocketTimeoutException e) {
                 if (getState() == ClientConnectionState.CONNECTED) {
-                    writePacket(new PacketBody4Ping(getRole().getOut()));
-                    lastPing = System.currentTimeMillis();
+                    if (System.currentTimeMillis() - lastResponse >= TIMEOUT) {
+                        Ts3Debugging.debug("Connection timed out.");
+                        setState(ClientConnectionState.DISCONNECTED); // Timeout
+                    } else {
+                        writePacket(new PacketBody4Ping(getRole().getOut()));
+                        lastPing = System.currentTimeMillis();
+                    }
                 }
 
                 continue;
@@ -593,16 +602,28 @@ public abstract class AbstractTeamspeakClientSocket
             switch (packet.getHeader().getType()) {
                 case ACK:
                     response = sendQueue.get(((PacketBody6Ack)packet.getBody()).getPacketId());
-                    if (response == null)
-                        Ts3Debugging.debug("Unrecognized ACK: " + ((PacketBody6Ack)packet.getBody()).getPacketId());
+                    if (response == null) {
+                        Ts3Debugging.debug("Unrecognized ACK: " + ((PacketBody6Ack) packet.getBody()).getPacketId());
+                    } else {
+                        lastResponse = System.currentTimeMillis();
+                    }
+
                     handle = false;
                     break;
                 case ACK_LOW:
+                    lastResponse = System.currentTimeMillis();
+
                     response = sendQueueLow.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
-                    if (response == null)
-                        Ts3Debugging.debug("Unrecognized ACK_LOW: " + ((PacketBody6Ack)packet.getBody()).getPacketId());
+                    if (response == null) {
+                        Ts3Debugging.debug("Unrecognized ACK_LOW: " + ((PacketBody6Ack) packet.getBody()).getPacketId());
+                    } else {
+                        lastResponse = System.currentTimeMillis();
+                    }
+
                     handle = false;
                     break;
+                case PONG:
+                    lastResponse = System.currentTimeMillis();
                 default:
                     handle = true;
                     response = null;

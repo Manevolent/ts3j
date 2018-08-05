@@ -26,43 +26,20 @@ package com.github.manevolent.ts3j.event;
  * #L%
  */
 
-public interface TS3Listener {
+import java.util.Map;
 
-	void onTextMessage(TextMessageEvent e);
+public class DisconnectedEvent extends BaseEvent {
 
-	void onClientJoin(ClientJoinEvent e);
+	public DisconnectedEvent(Map<String, String> map) {
+		super(map);
+	}
 
-	void onClientLeave(ClientLeaveEvent e);
+    public int getReasonId() {
+        return getInt("reasonid");
+    }
 
-	void onServerEdit(ServerEditedEvent e);
-
-	void onChannelEdit(ChannelEditedEvent e);
-
-	void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e);
-
-	void onClientMoved(ClientMovedEvent e);
-
-	void onChannelCreate(ChannelCreateEvent e);
-
-	void onChannelDeleted(ChannelDeletedEvent e);
-
-	void onChannelMoved(ChannelMovedEvent e);
-
-	void onChannelPasswordChanged(ChannelPasswordChangedEvent e);
-
-    void onChannelList(ChannelListEvent e);
-
-	void onPrivilegeKeyUsed(PrivilegeKeyUsedEvent e);
-
-	void onChannelGroupList(ChannelGroupListEvent e);
-
-	void onServerGroupList(ServerGroupListEvent e);
-
-	void onClientNeededPermissions(ClientNeededPermissionsEvent e);
-
-    void onClientChannelGroupChanged(ClientChannelGroupChangedEvent e);
-
-    void onClientChanged(ClientUpdatedEvent e);
-
-    void onDisconnected(DisconnectedEvent e);
+	@Override
+	public void fire(TS3Listener listener) {
+		listener.onDisconnected(this);
+	}
 }

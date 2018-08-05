@@ -9,9 +9,7 @@ import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
-import com.github.manevolent.ts3j.event.ChannelListEvent;
-import com.github.manevolent.ts3j.event.TS3Event;
-import com.github.manevolent.ts3j.event.TS3Listener;
+import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.identity.Uid;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
@@ -58,7 +56,7 @@ public class LocalTeamspeakClientSocket
 
     private List<TS3Listener> listeners = new LinkedList<>();
 
-    private int acceptingReturnCode = 0;
+    private int acceptingReturnCode = Integer.MAX_VALUE;
     private int lastReturnCode = 0;
 
     private Integer serverId = null;
@@ -80,6 +78,27 @@ public class LocalTeamspeakClientSocket
         });
 
         namedProcessors.put("channellistfinished", new ChannelListFinishedHandler());
+
+        namedProcessors.put("notifyclientleftview", new CommandProcessor() {
+            @Override
+            public void process(AbstractTeamspeakClientSocket client, SingleCommand command)
+                    throws CommandProcessException {
+                int clientId = Integer.parseInt(command.get("clid").getValue());
+                if (clientId == getClientId()) {
+                    try {
+                        setState(ClientConnectionState.DISCONNECTED);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    for (TS3Listener listener : listeners)
+                        listener.onDisconnected(new DisconnectedEvent(command.toMap()));
+                } else {
+                    for (TS3Listener listener : listeners)
+                        listener.onClientLeave(new ClientLeaveEvent(command.toMap()));
+                }
+            }
+        });
     }
 
     public void addListener(TS3Listener listener) {
@@ -164,6 +183,9 @@ public class LocalTeamspeakClientSocket
             setClientId(0);
             setPacketId(0);
             setGenerationId(0);
+            serverId = null;
+            awaitingCommands.clear();
+            acceptingReturnCode = lastReturnCode = 0;
 
             setOption("client.hostname", remote.getHostString());
 
@@ -745,4 +767,24 @@ public class LocalTeamspeakClientSocket
 
         executeCommand(command).complete();
     }
+
+    public void disconnect()
+            throws
+            IOException, TimeoutException,
+            ExecutionException, InterruptedException {
+        switch (getState()) {
+            case CONNECTING:
+            case RETRIEVING_DATA:
+                waitForState(ClientConnectionState.CONNECTED, 10000L);
+            case CONNECTED:
+                writePacket(new PacketBody2Command(
+                        ProtocolRole.CLIENT,
+                        new SingleCommand("clientdisconnect", ProtocolRole.CLIENT))
+                );
+
+                break;
+        }
+    }
+
+
 }

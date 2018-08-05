@@ -40,16 +40,9 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            client.sendServerMessage("Heyyyy");
+            client.disconnect();
 
-            while (true) {
-                Thread.sleep(1000L);
-
-                for (Channel channel : client.listChannels()) {
-                    Ts3Debugging.debug(channel.getName());
-                }
-
-            }
+            client.waitForState(ClientConnectionState.DISCONNECTED, 10000L);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }
