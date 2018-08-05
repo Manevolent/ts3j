@@ -481,6 +481,27 @@ public class LocalTeamspeakClientSocket
         }
     }
 
+    @Override
+    public void setNickname(String nickname) {
+        switch (getState()) {
+            case RETRIEVING_DATA:
+            case CONNECTED:
+                Command banCommand = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
+
+                banCommand.add(new CommandSingleParameter("client_nickname", nickname));
+
+                try {
+                    executeCommand(banCommand).complete();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                break;
+        }
+
+        super.setNickname(nickname);
+    }
+
     /**
      * Commands
      */
