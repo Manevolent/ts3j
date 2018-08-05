@@ -7,6 +7,24 @@ If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the g
 
 TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
 
+# Maven
+
+If you want the latest `-SNAPSHOT`:
+
+```
+	<repositories>
+		<repository>
+		    <id>jitpack.io</id>
+		    <url>https://jitpack.io</url>
+		</repository>
+	</repositories>
+   <dependency>
+	    <groupId>com.github.manevolent</groupId>
+	    <artifactId>ts3j</artifactId>
+	    <version>-SNAPSHOT</version>
+	</dependency>
+```
+
 # Usage
 
 ```
