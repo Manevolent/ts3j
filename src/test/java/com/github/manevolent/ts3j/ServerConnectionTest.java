@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -142,17 +143,9 @@ public class ServerConnectionTest  {
 
                 @Override
                 public void onChannelSubscribed(ChannelSubscribedEvent e) {
-                    try {
-                        client.getChannelInfo(e.getChannelId());
-                    } catch (IOException e1) {
-                        e1.printStackTrace();
-                    } catch (TimeoutException e1) {
-                        e1.printStackTrace();
-                    } catch (ExecutionException e1) {
-                        e1.printStackTrace();
-                    } catch (InterruptedException e1) {
-                        e1.printStackTrace();
-                    }
+                    System.err.println("doing");
+                    client.setNickname("EEEE" + (new Random().nextInt(1000)));
+                    System.err.println("done");
                 }
             });
 

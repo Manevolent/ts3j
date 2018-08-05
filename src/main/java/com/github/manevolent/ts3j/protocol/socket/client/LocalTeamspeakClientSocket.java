@@ -90,11 +90,12 @@ public class LocalTeamspeakClientSocket
                         throw new RuntimeException(e);
                     }
 
-                    for (TS3Listener listener : listeners)
-                        listener.onDisconnected(new DisconnectedEvent(command.toMap()));
+
+                    DisconnectedEvent e = new DisconnectedEvent(command.toMap());
+                    commandExecutionService.submit(() -> listeners.forEach(e::fire));
                 } else {
-                    for (TS3Listener listener : listeners)
-                        listener.onClientLeave(new ClientLeaveEvent(command.toMap()));
+                    ClientLeaveEvent e = new ClientLeaveEvent(command.toMap());
+                    commandExecutionService.submit(() -> listeners.forEach(e::fire));
                 }
             }
         });
