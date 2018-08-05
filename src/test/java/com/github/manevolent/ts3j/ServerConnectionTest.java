@@ -1,6 +1,8 @@
 package com.github.manevolent.ts3j;
 
 import com.github.manevolent.ts3j.api.Client;
+import com.github.manevolent.ts3j.audio.Microphone;
+import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
@@ -25,6 +27,24 @@ public class ServerConnectionTest  {
 
             LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
 
+            client.setMicrophone(new Microphone() {
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+
+                @Override
+                public CodecType getCodec() {
+                    return CodecType.OPUS_MUSIC;
+                }
+
+                @Override
+                public byte[] provide() {
+                    System.err.println("Provide.");
+                    return new byte[0];
+                }
+            });
+
             client.setIdentity(identity);
 
             client.setNickname("Hello from Java");
@@ -42,11 +62,7 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            for (Client c : client.listClients()) {
-                client.getClientInfo(c.getId());
-            }
-
-            client.disconnect();
+            client.setNickname("gjklsdfkjlgdsfgd2");
 
             client.waitForState(ClientConnectionState.DISCONNECTED, 10000L);
         } catch (Throwable ex) {

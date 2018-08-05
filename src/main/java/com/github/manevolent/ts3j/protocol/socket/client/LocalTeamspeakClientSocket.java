@@ -198,7 +198,7 @@ public class LocalTeamspeakClientSocket
             waitForState(ClientConnectionState.CONNECTED, timeout);
 
             microphoneThread = new HighPrecisionRecurrentTask(
-                    1000,
+                    20,
                     0.020F,
                     new MicrophoneTask()
             );
@@ -328,10 +328,9 @@ public class LocalTeamspeakClientSocket
     private class MicrophoneTask implements Runnable {
         @Override
         public void run() {
-            PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
-            Microphone microphone;
-
             if (!isConnected()) return;
+
+            Microphone microphone;
 
             // Attempt to get the current microphone instance, saving it in a variable to prevent
             // any race conditions by accessing the parent class' this.microphone.
@@ -342,6 +341,8 @@ public class LocalTeamspeakClientSocket
                 // TODO
                 // Set a state and send a muted event
             } else if (microphone.isReady()) {
+                PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
+
                 voice.setCodecType(microphone.getCodec());
                 voice.setCodecData(microphone.provide());
 
