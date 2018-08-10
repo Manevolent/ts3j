@@ -143,9 +143,7 @@ public class ServerConnectionTest  {
 
                 @Override
                 public void onChannelSubscribed(ChannelSubscribedEvent e) {
-                    System.err.println("doing");
-                    client.setNickname("EEEE" + (new Random().nextInt(1000)));
-                    System.err.println("done");
+
                 }
             });
 

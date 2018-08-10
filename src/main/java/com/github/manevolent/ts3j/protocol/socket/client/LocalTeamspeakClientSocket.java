@@ -112,9 +112,9 @@ public class LocalTeamspeakClientSocket
 
                 Pair<Double, Double> ping = getPing();
                 response.add(new CommandSingleParameter("connection_ping",
-                        Integer.toString((int)(double)ping.getKey())));
+                        Double.toString(Math.round(ping.getKey() * 1000D * 1000D) / 1000D)));
                 response.add(new CommandSingleParameter("connection_ping_deviation",
-                        Integer.toString((int)(double)ping.getValue())));
+                        Double.toString(Math.round(ping.getValue() * 1000D * 1000D) / 1000D)));
 
                 for (PacketKind kind : PacketKind.values()) {
                     PacketStatistics stats = getStatistics(kind);
