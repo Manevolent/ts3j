@@ -4,6 +4,7 @@ import com.github.manevolent.ts3j.command.*;
 import com.github.manevolent.ts3j.identity.Identity;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.Packet;
+import com.github.manevolent.ts3j.protocol.PacketKind;
 import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
@@ -12,6 +13,7 @@ import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.*;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
 import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandler;
+import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
 import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
@@ -51,6 +53,7 @@ public abstract class AbstractTeamspeakClientSocket
 
     private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
 
+    private final Map<Integer, PacketResponse> pingQueue = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueueLow = new ConcurrentHashMap<>();
 
@@ -70,6 +73,19 @@ public abstract class AbstractTeamspeakClientSocket
 
     private long lastResponse;
     private long lastPing;
+
+    // RTT
+    private static final double alphaSmooth = 0.125D;
+    private static final double betaSmooth = 0.25D;
+    private double smoothedRtt;
+    private double smoothedRttVar;
+    private double currentRto;
+    //
+
+    // Ping
+    private List<Double> pings = new LinkedList<>();
+    private Map<PacketKind, PacketStatistics> packetStatistics = new LinkedHashMap<>();
+    //
 
     private final NetworkReader networkReader = new NetworkReader();
     private Thread networkThread = null;
@@ -103,6 +119,15 @@ public abstract class AbstractTeamspeakClientSocket
                 remoteSendCounter.put(bodyType, new RemoteCounterFull(65536, 100));
             }
         }
+
+        // Initialize statistics
+        for (PacketKind kind : PacketKind.values()) {
+            packetStatistics.put(kind, new PacketStatistics());
+        }
+    }
+
+    public PacketStatistics getStatistics(PacketKind kind) {
+        return packetStatistics.get(kind);
     }
 
     protected void start() {
@@ -378,22 +403,23 @@ public abstract class AbstractTeamspeakClientSocket
                         networkPacket.getHeader().getType() != PacketBodyType.PING;
 
         final PacketResponse response;
+        final Map<Integer, PacketResponse> responsibleQueue;
 
-        if (willWaitForAck) {
-            Map<Integer, PacketResponse> responsibleQueue;
+        switch (packet.getHeader().getType()) {
+            case COMMAND:
+                responsibleQueue = sendQueue;
+                break;
+            case COMMAND_LOW:
+                responsibleQueue = sendQueueLow;
+                break;
+            case PING:
+                responsibleQueue = pingQueue;
+                break;
+            default:
+                responsibleQueue = null;
+        }
 
-            switch (packet.getHeader().getType()) {
-                case COMMAND:
-                    responsibleQueue = sendQueue;
-                    break;
-                case COMMAND_LOW:
-                    responsibleQueue = sendQueueLow;
-                    break;
-                default:
-                    throw new IllegalArgumentException("no ack queue exists for " +
-                            packet.getHeader().getType().name());
-            }
-
+        if (responsibleQueue != null) {
             responsibleQueue.put(
                     packet.getHeader().getPacketId(),
                     response = new PacketResponse(
@@ -409,8 +435,14 @@ public abstract class AbstractTeamspeakClientSocket
 
         writeNetworkPacket(networkPacket);
 
+        PacketKind kind = networkPacket.getHeader().getType().getKind();
+        if (kind != null)
+            packetStatistics
+                    .get(kind)
+                    .processOutgoing(packet);
+
         // If necessary, fulfill promise for the packet acknowledgement or throw TimeoutException
-        if (response != null) {
+        if (response != null && willWaitForAck) {
             while (response.getRetries() < response.getMaxTries() &&
                     getState() != ClientConnectionState.DISCONNECTED) {
                 try {
@@ -512,6 +544,13 @@ public abstract class AbstractTeamspeakClientSocket
 
             packet.readBody(packetBuffer);
         }
+
+
+        PacketKind kind = networkPacket.getHeader().getType().getKind();
+        if (kind != null)
+            packetStatistics
+                    .get(kind)
+                    .processIncoming(packet);
 
         // Return to parent handler
         return packet;
@@ -633,9 +672,40 @@ public abstract class AbstractTeamspeakClientSocket
                     break;
                 case PONG:
                     lastResponse = System.currentTimeMillis();
+                    response = pingQueue.get(((PacketBody5Pong)packet.getBody()).getPacketId());
+                    if (response == null) {
+                        Ts3Debugging.debug("Unrecognized PONG: " + ((PacketBody6Ack) packet.getBody()).getPacketId());
+                    } else {
+                        lastResponse = System.currentTimeMillis();
+                    }
+                    handle = false;
+                    break;
                 default:
                     handle = true;
                     response = null;
+            }
+
+            // Calculate RTT
+            if (response != null) {
+                long rttNano = packet.getCreatedNanotime() - response.getLastSent();
+                double sampleRtt = rttNano / 1_000_000_000D;
+
+                if (packet.getHeader().getType() == PacketBodyType.PONG) {
+                    synchronized (pings) {
+                        pings.add(sampleRtt); // add rtt
+
+                        while (pings.size() > 5)
+                            pings.remove(5 - 1); // rm oldest
+                    }
+                }
+
+                if (smoothedRtt < 0)
+                    smoothedRtt = sampleRtt;
+                else
+                    smoothedRtt = (long)((1 - alphaSmooth) * smoothedRtt + alphaSmooth * sampleRtt);
+
+                smoothedRttVar = (long)((1 - betaSmooth) * smoothedRttVar + betaSmooth * Math.abs(sampleRtt - smoothedRtt));
+                currentRto = smoothedRtt + Math.max(0D, 4 * smoothedRttVar);
             }
 
             if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1) {
@@ -651,6 +721,35 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         throw new IllegalStateException("no longer reading");
+    }
+
+    /**
+     * Gets the ping
+     */
+    public Pair<Double, Double> getPing() {
+        synchronized (pings) {
+            if (pings.size() == 1) {
+                return new Pair<>(pings.get(0), 0D);
+            } else if (pings.size() > 1) {
+                double avg = pings.stream().reduce((a, b) -> (a + b) / 2D).orElse(0D);
+                double sum = 0;
+                int n = 0;
+                for (double val : pings) {
+                    n ++;
+                    sum += (val - avg) * (val - avg);
+                }
+
+                double stdDev;
+                if (n > 1)
+                    stdDev = Math.sqrt(sum / (n - 1));
+                else
+                    stdDev = 0;
+
+                return new Pair<>(pings.get(0), stdDev);
+            } else {
+                return new Pair<>((double)TIMEOUT, 0D);
+            }
+        }
     }
 
     @Override
@@ -788,7 +887,7 @@ public abstract class AbstractTeamspeakClientSocket
             this.sentPacket = sentPacket;
             this.responsibleQueue = responsibleQueue;
             this.maxTries = maxTries;
-            this.lastSent = System.currentTimeMillis();
+            this.lastSent = System.nanoTime();
             this.willResend = maxTries > 0;
         }
 
@@ -798,7 +897,16 @@ public abstract class AbstractTeamspeakClientSocket
 
         public void resend() throws IOException {
             AbstractTeamspeakClientSocket.this.writeNetworkPacket(sentPacket);
-            setLastSent(System.currentTimeMillis());
+
+            long t = System.nanoTime();
+            long before = lastSent;
+            long elapsed = t - before;
+
+            setLastSent(t);
+
+            double elapsedSeconds = elapsed / 1_000_000_000D;
+            currentRto += elapsedSeconds;
+
             tries ++;
         }
 

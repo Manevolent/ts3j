@@ -13,13 +13,16 @@ import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.identity.Uid;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
+import com.github.manevolent.ts3j.protocol.PacketKind;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
+import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
+import javafx.util.Pair;
 
 import java.io.IOException;
 import java.net.*;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 public class LocalTeamspeakClientSocket
         extends AbstractTeamspeakClientSocket
         implements CommandProcessor {
+
     private final DatagramSocket socket;
 
     {
@@ -96,6 +100,51 @@ public class LocalTeamspeakClientSocket
                 } else {
                     ClientLeaveEvent e = new ClientLeaveEvent(command.toMap());
                     commandExecutionService.submit(() -> listeners.forEach(e::fire));
+                }
+            }
+        });
+
+        namedProcessors.put("notifyconnectioninforequest", new CommandProcessor() {
+            @Override
+            public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
+                    throws CommandProcessException {
+                SingleCommand response = new SingleCommand("setconnectioninfo", getRole().getOut());
+
+                Pair<Double, Double> ping = getPing();
+                response.add(new CommandSingleParameter("connection_ping",
+                        Integer.toString((int)(double)ping.getKey())));
+                response.add(new CommandSingleParameter("connection_ping_deviation",
+                        Integer.toString((int)(double)ping.getValue())));
+
+                for (PacketKind kind : PacketKind.values()) {
+                    PacketStatistics stats = getStatistics(kind);
+                    String name = kind.name().toLowerCase();
+                    response.add(new CommandSingleParameter("connection_packets_sent_" + name,
+                            Integer.toString(stats.getSentPackets())));
+                    response.add(new CommandSingleParameter("connection_packets_received_" + name,
+                            Integer.toString(stats.getReceivedPackets())));
+                    response.add(new CommandSingleParameter("connection_bytes_sent_" + name,
+                            Integer.toString(stats.getSentBytes())));
+                    response.add(new CommandSingleParameter("connection_bytes_received_" + name,
+                            Integer.toString(stats.getReceivedBytes())));
+                    response.add(new CommandSingleParameter("connection_server2client_packetloss_" + name,
+                            Integer.toString(0)));
+                    response.add(new CommandSingleParameter("connection_bandwidth_sent_last_second_" + name,
+                            Integer.toString(stats.getSentBytesLastSecond())));
+                    response.add(new CommandSingleParameter("connection_bandwidth_sent_last_minute_" + name,
+                            Integer.toString(stats.getSentBytesLastMinute())));
+                    response.add(new CommandSingleParameter("connection_bandwidth_received_last_second_" + name,
+                            Integer.toString(stats.getReceivedBytesLastSecond())));
+                    response.add(new CommandSingleParameter("connection_bandwidth_received_last_minute_" + name,
+                            Integer.toString(stats.getReceivedBytesLastMinute())));
+                }
+
+                Ts3Debugging.debug(response.build());
+
+                try {
+                    writePacket(new PacketBody2Command(getRole().getOut(), response));
+                } catch (Exception e) {
+                    Ts3Debugging.debug("Problem sending setconnectioninfo", e);
                 }
             }
         });
@@ -436,7 +485,7 @@ public class LocalTeamspeakClientSocket
             return command;
         }
 
-        public void ensureSent()
+        public boolean ensureSent()
                 throws IOException, TimeoutException {
             synchronized (sendLock) {
                 if (!sent) {
@@ -445,7 +494,11 @@ public class LocalTeamspeakClientSocket
                     );
 
                     sent = true;
+
+                    return true;
                 }
+
+                return false;
             }
         }
     }

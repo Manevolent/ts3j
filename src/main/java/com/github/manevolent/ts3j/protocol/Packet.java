@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
  * Represents a fully contained network packet, traveling in or out.
  */
 public final class Packet {
+    private final long creationNanotime = System.nanoTime();
     private final ProtocolRole role;
 
     private PacketHeader header;
@@ -130,5 +131,9 @@ public final class Packet {
      */
     public int getSize() {
         return (getHeader() == null ? 0 : getHeader().getSize()) + (getBody() == null ? 0 : getBody().getSize());
+    }
+
+    public long getCreatedNanotime() {
+        return creationNanotime;
     }
 }
