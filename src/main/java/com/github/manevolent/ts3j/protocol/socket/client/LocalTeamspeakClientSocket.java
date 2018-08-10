@@ -868,7 +868,12 @@ public class LocalTeamspeakClientSocket
             map.put("clid", Integer.toString(clientId));
             return new Client(map);
         }).get();
-        return clients.iterator().next();
+
+        Iterator<Client> iterator = clients.iterator();
+        if (iterator.hasNext())
+            return iterator.next();
+        else
+            return null;
     }
 
     public Channel getChannelInfo(int channelId)
@@ -879,7 +884,11 @@ public class LocalTeamspeakClientSocket
                 new CommandSingleParameter("cid", Integer.toString(channelId))
         );
 
-        return executeCommand(command, x -> new Channel(x.toMap())).get().iterator().next();
+        Iterator<Channel> iterator = executeCommand(command, x -> new Channel(x.toMap())).get().iterator();
+        if (iterator.hasNext())
+            return iterator.next();
+        else
+            return null;
     }
 
     public void disconnect()
