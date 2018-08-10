@@ -49,7 +49,7 @@ public class PacketStatistics {
     }
 
     public int getSentPacketsLastSecond() {
-        long now = System.currentTimeMillis() - 1_000_000_000L;
+        long now = System.nanoTime() - 1_000_000_000L;
 
         return (int) sentPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -57,7 +57,7 @@ public class PacketStatistics {
     }
 
     public int getSentPacketsLastMinute() {
-        long now = System.currentTimeMillis() - 1_000_000_000L;
+        long now = System.nanoTime() - 1_000_000_000L;
 
         return (int) sentPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -69,7 +69,7 @@ public class PacketStatistics {
     }
 
     public int getReceivedPacketsLastSecond() {
-        long now = System.currentTimeMillis() - 1_000_000_000L;
+        long now = System.nanoTime() - 1_000_000_000L;
 
         return (int) receivedPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -77,7 +77,7 @@ public class PacketStatistics {
     }
 
     public int getReceivedPacketsLastMinute() {
-        long now = System.currentTimeMillis() - 60_000_000_000L;
+        long now = System.nanoTime() - 60_000_000_000L;
 
         return (int) receivedPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -90,7 +90,7 @@ public class PacketStatistics {
     }
 
     public int getSentBytesLastMinute() {
-        long now = System.currentTimeMillis() - 60_000_000_000L;
+        long now = System.nanoTime() - 60_000_000_000L;
 
         return sentPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -100,7 +100,7 @@ public class PacketStatistics {
     }
 
     public int getSentBytesLastSecond() {
-        long now = System.currentTimeMillis() - 1_000_000_000L;
+        long now = System.nanoTime() - 1_000_000_000L;
 
         return sentPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -110,7 +110,7 @@ public class PacketStatistics {
     }
 
     public int getReceivedBytesLastMinute() {
-        long now = System.currentTimeMillis() - 60_000_000_000L;
+        long now = System.nanoTime() - 60_000_000_000L;
 
         return receivedPacketList.stream()
                 .filter(x -> x.getTime() >= now)
@@ -120,7 +120,7 @@ public class PacketStatistics {
     }
 
     public int getReceivedBytesLastSecond() {
-        long now = System.currentTimeMillis() - 1_000_000_000L;
+        long now = System.nanoTime() - 1_000_000_000L;
 
         return receivedPacketList.stream()
                 .filter(x -> x.getTime() >= now)
