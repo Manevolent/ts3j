@@ -151,7 +151,7 @@ public class ServerConnectionTest  {
 
             client.subscribeAll();
 
-            client.waitForState(ClientConnectionState.DISCONNECTED, 10000L);
+            client.waitForState(ClientConnectionState.DISCONNECTED, 100000000L);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

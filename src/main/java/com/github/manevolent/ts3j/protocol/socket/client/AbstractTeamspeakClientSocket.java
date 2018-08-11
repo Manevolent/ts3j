@@ -866,11 +866,18 @@ public abstract class AbstractTeamspeakClientSocket
             while (isReading()) {
                 try {
                     readQueue.put(readPacket());
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     if (e instanceof InterruptedException) continue;
 
-                    Ts3Debugging.debug("Problem reading packet", e);
+                    e.printStackTrace();
+
+                    break;
                 }
+            }
+
+            try {
+                setState(ClientConnectionState.DISCONNECTED);
+            } catch (Throwable e1) {
             }
         }
     }
