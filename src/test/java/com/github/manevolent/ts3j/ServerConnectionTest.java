@@ -1,23 +1,14 @@
 package com.github.manevolent.ts3j;
-
-import com.github.manevolent.ts3j.api.Client;
-import com.github.manevolent.ts3j.audio.Microphone;
-import com.github.manevolent.ts3j.enums.CodecType;
+;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
 
@@ -40,9 +31,11 @@ public class ServerConnectionTest  {
 
             client.setOption("client.hwid", "JAVAJAVAJAVA");
 
-            client.connect(new InetSocketAddress(
+            client.connect(
+                    new InetSocketAddress(
                             "ts.teamlixo.net",
-                            9987),
+                            9987
+                    ),
                     null,
                     10000L
             );
@@ -153,7 +146,7 @@ public class ServerConnectionTest  {
 
             client.subscribeAll();
 
-            Thread.sleep(1000000L);
+            Thread.sleep(100000000L);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

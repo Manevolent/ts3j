@@ -214,6 +214,24 @@ public class LocalTeamspeakClientSocket
         super.setIdentity(identity);
     }
 
+    @Override
+    protected void onDisconnect() {
+        super.onDisconnect();
+
+        synchronized (commandSendLock) {
+            for (Integer id : new ArrayList<>(awaitingCommands.keySet())) {
+                ClientCommandResponse response = awaitingCommands.get(id);
+                response.completeFailure(new IOException("client disconnected"));
+            }
+
+            awaitingCommands.clear();
+
+            calculateAcceptingReturnCode();
+        }
+
+        serverId = null;
+    }
+
     /**
      * Initiates a connection to a server
      * @param remote remote sever to contact
@@ -232,8 +250,7 @@ public class LocalTeamspeakClientSocket
                 throw new IllegalStateException(connectionState.name());
 
             setClientId(0);
-            setPacketId(0);
-            setGenerationId(0);
+
             serverId = null;
             awaitingCommands.clear();
             acceptingReturnCode = lastReturnCode = 0;
@@ -320,11 +337,15 @@ public class LocalTeamspeakClientSocket
             Command command,
             Function<SingleCommand, T> processor
     ) throws IOException, TimeoutException {
-        int returnCode;
         final ClientCommandResponse<Iterable<T>> response;
 
-        // sync may not be necessary here
         synchronized (commandSendLock) {
+            if (getState() != ClientConnectionState.CONNECTED)
+                throw new IOException("not connected");
+
+            int returnCode;
+
+            // sync may not be necessary here
             returnCode = lastReturnCode++;
 
             command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
@@ -400,11 +421,10 @@ public class LocalTeamspeakClientSocket
 
                 try {
                     writePacket(voice);
-                } catch (IOException e) {
+                } catch (Exception e) {
                     // All we are really concerned about here is a disconnection event, in which case the loop
                     // will exit.
-                } catch (TimeoutException e) {
-                    // Not really possible; as we might expect, voice doesn't have ACKs.
+                    getExceptionHandler().accept(e);
                 }
             }
         }

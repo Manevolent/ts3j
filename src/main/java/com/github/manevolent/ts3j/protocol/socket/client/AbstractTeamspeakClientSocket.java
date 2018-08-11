@@ -30,6 +30,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * Server/client common abstract client socket, used to interact with the UDP connection.  Provides most of the protocol
@@ -62,14 +63,16 @@ public abstract class AbstractTeamspeakClientSocket
 
     private CommandProcessor commandProcessor;
 
+    private Consumer<Throwable> exceptionHandler = throwable -> {
+        throwable.printStackTrace();
+    };
+
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
     private PacketTransformation transformation = new InitPacketTransformation();
     private PacketHandler handler;
 
-    private int generationId = 0;
     private int clientId = 0;
-    private int packetId = 0;
 
     private long lastResponse;
     private long lastPing;
@@ -98,12 +101,6 @@ public abstract class AbstractTeamspeakClientSocket
     protected AbstractTeamspeakClientSocket() {
         super(SocketRole.CLIENT);
 
-        try {
-            setState(ClientConnectionState.DISCONNECTED);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
         // Initialize reassembly queue
         for (PacketBodyType bodyType : PacketBodyType.values())
             if (bodyType.isSplittable())
@@ -123,6 +120,12 @@ public abstract class AbstractTeamspeakClientSocket
         // Initialize statistics
         for (PacketKind kind : PacketKind.values()) {
             packetStatistics.put(kind, new PacketStatistics());
+        }
+
+        try {
+            setState(ClientConnectionState.DISCONNECTED);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -158,6 +161,7 @@ public abstract class AbstractTeamspeakClientSocket
             if (state != this.connectionState) {
                 Ts3Debugging.debug("State changing: " + state.name());
 
+                boolean initialState = this.connectionState == null;
                 boolean wasDisconnected = this.connectionState == ClientConnectionState.DISCONNECTED;
 
                 if (wasDisconnected) setReading(true);
@@ -168,8 +172,8 @@ public abstract class AbstractTeamspeakClientSocket
 
                 connectionStateLock.notifyAll();
 
-                if (state == ClientConnectionState.DISCONNECTED)
-                    clientOptions.clear();
+                if (state == ClientConnectionState.DISCONNECTED && !initialState)
+                    onDisconnect();
 
                 Ts3Debugging.debug("State changed: " + state.name());
             }
@@ -186,6 +190,31 @@ public abstract class AbstractTeamspeakClientSocket
             setHandler(state.createHandler(this));
 
             Ts3Debugging.debug("Assigned " + state.getHandlerClass().getName() + " handler.");
+        }
+    }
+
+    protected void onDisconnect() {
+        clientOptions.clear();
+
+        clientId = -1;
+
+        readQueue.clear();
+
+        for (PacketBodyType bodyType : PacketBodyType.values())
+            if (bodyType.isSplittable())
+                reassemblyQueue.get(bodyType).reset();
+
+        pingQueue.clear();
+        sendQueue.clear();
+        sendQueueLow.clear();
+
+        for (PacketBodyType bodyType : PacketBodyType.values()) {
+            localSendCounter.get(bodyType).reset();
+            remoteSendCounter.get(bodyType).reset();
+        }
+
+        for (PacketKind kind : PacketKind.values()) {
+            packetStatistics.put(kind, new PacketStatistics());
         }
     }
 
@@ -517,7 +546,7 @@ public abstract class AbstractTeamspeakClientSocket
 
             packet.setBody(new PacketBodyFragment(networkPacket.getHeader().getType(), getRole().getIn()));
         } else {
-            if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
+            if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) && packet.getHeader().getType().isCompressible())
                 packet.setBody(new PacketBodyCompressed(networkPacket.getHeader().getType(), getRole().getIn()));
 
             Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
@@ -528,7 +557,6 @@ public abstract class AbstractTeamspeakClientSocket
 
         // Finally, handle compressed bodies
         if (packet.getBody() instanceof PacketBodyCompressed) {
-
             Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
 
             byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
@@ -591,16 +619,17 @@ public abstract class AbstractTeamspeakClientSocket
             }
             networkPacket.getHeader().setGeneration(generation);
 
-
-            // Ignore voice and whisper, there is a decompression issue with them
-            if (networkPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) && (
-                    networkPacket.getHeader().getType() == PacketBodyType.VOICE ||
-                    networkPacket.getHeader().getType() == PacketBodyType.VOICE_WHISPER
-            ))
-                continue;
-
             // Read packet (decrypt, decompress, etc)
-            Packet packet = readPacketIntl(networkPacket);
+            Packet packet;
+            try {
+                packet = readPacketIntl(networkPacket);
+            } catch (Exception ex) {
+                exceptionHandler.accept(
+                        new Exception("Problem reading " + networkPacket.getHeader().getType().name(), ex)
+                );
+
+                continue;
+            }
 
             // Find if the packet must be acknowledged
             PacketBodyType ackType = packet
@@ -705,10 +734,13 @@ public abstract class AbstractTeamspeakClientSocket
                 currentRto = smoothedRtt + Math.max(0D, 4 * smoothedRttVar);
             }
 
+            // This is pulled out of the following IF block so that packet generation can increase correctly
+            boolean placed = counter != null && counter.put(packet.getHeader().getPacketId());
+
             if (packet.getHeader().getType().canResend() && packet.getHeader().getType() != PacketBodyType.INIT1) {
                 // Find if we already acknowledged this packet
                 if (counter != null)
-                    handle = handle & counter.put(packet.getHeader().getPacketId());
+                    handle = handle & placed;
             }
 
             if (response != null) {
@@ -805,22 +837,6 @@ public abstract class AbstractTeamspeakClientSocket
         this.clientId = clientId;
     }
 
-    public int getPacketId() {
-        return packetId;
-    }
-
-    public void setPacketId(int packetId) {
-        this.packetId = packetId;
-    }
-
-    public int getGenerationId() {
-        return generationId;
-    }
-
-    public void setGenerationId(int generationId) {
-        this.generationId = generationId;
-    }
-
     public String getNickname( ){
         return getOption("client.nickname", String.class);
     }
@@ -835,6 +851,14 @@ public abstract class AbstractTeamspeakClientSocket
 
     public void setCommandProcessor(CommandProcessor commandProcessor) {
         this.commandProcessor = commandProcessor;
+    }
+
+    public Consumer<Throwable> getExceptionHandler() {
+        return exceptionHandler;
+    }
+
+    public void setExceptionHandler(Consumer<Throwable> exceptionHandler) {
+        this.exceptionHandler = exceptionHandler;
     }
 
     private class NetworkHandler implements Runnable {
@@ -864,10 +888,12 @@ public abstract class AbstractTeamspeakClientSocket
                 try {
                     readQueue.put(readPacket());
                 } catch (Throwable e) {
-                    if (e instanceof InterruptedException) continue;
+                    if (e instanceof InterruptedException) {
+                        Thread.yield();
+                        continue;
+                    }
 
-                    e.printStackTrace();
-
+                    exceptionHandler.accept(e);
                     break;
                 }
             }
@@ -875,6 +901,7 @@ public abstract class AbstractTeamspeakClientSocket
             try {
                 setState(ClientConnectionState.DISCONNECTED);
             } catch (Throwable e1) {
+                exceptionHandler.accept(e1);
             }
         }
     }
@@ -991,6 +1018,7 @@ public abstract class AbstractTeamspeakClientSocket
          */
         boolean put(int packetId);
 
+        void reset();
     }
 
     public static class RemoteCounterZero implements RemoteCounter {
@@ -1008,6 +1036,11 @@ public abstract class AbstractTeamspeakClientSocket
         @Override
         public boolean put(int packetId) {
             return true;
+        }
+
+        @Override
+        public void reset() {
+            // Do nothing
         }
 
     }
@@ -1141,6 +1174,12 @@ public abstract class AbstractTeamspeakClientSocket
             return put(packetId);
         }
 
+        @Override
+        public void reset() {
+            for (int i = 0; i < bufferSize; i ++)
+                buffer[i] = null;
+        }
+
         private boolean putRelative(int index, int generation) {
             Integer existing = buffer[index];
             if (existing == null || existing != generation) {
@@ -1203,6 +1242,8 @@ public abstract class AbstractTeamspeakClientSocket
         default Pair<Integer,Integer> current() {
             return new Pair<>(getPacketId(), getGeneration());
         }
+
+        void reset();
     }
 
     public static class LocalCounterZero implements LocalCounter {
@@ -1229,6 +1270,11 @@ public abstract class AbstractTeamspeakClientSocket
         @Override
         public void setGeneration(int i) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void reset() {
+            // Do nothing
         }
     }
 
@@ -1285,6 +1331,13 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         @Override
+        public void reset() {
+            synchronized (sendLock) {
+                packetId = generationId = 0;
+            }
+        }
+
+        @Override
         public Pair<Integer, Integer> next() {
             synchronized (sendLock) {
                 setPacketId(getPacketId() + 1);
@@ -1301,7 +1354,7 @@ public abstract class AbstractTeamspeakClientSocket
         private final Map<Integer, Packet> queue = new LinkedHashMap<>();
         private boolean state = false;
 
-        public Packet reassemble(Packet lastFragment) {
+        public Packet reassemble(Packet lastFragment) throws IOException {
             // Pull out all other packets in the queue before this one which would also be fragmented
             List<Packet> reassemblyList = new ArrayList<>();
             for (int packetId = lastFragment.getHeader().getPacketId();; packetId--) {
@@ -1342,7 +1395,7 @@ public abstract class AbstractTeamspeakClientSocket
             return reassembledPacket;
         }
 
-        public Packet put(Packet packet) {
+        public Packet put(Packet packet) throws IOException {
             Packet reassembled;
 
             if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
@@ -1375,6 +1428,11 @@ public abstract class AbstractTeamspeakClientSocket
 
         public boolean isReassembling() {
             return state;
+        }
+
+        public void reset() {
+            state = false;
+            queue.clear();
         }
     }
 }

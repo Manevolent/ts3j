@@ -39,11 +39,11 @@ public abstract class AbstractCommandResponse<T> implements CommandResponse<T> {
         return map(future.get());
     }
 
-    protected void completeSuccess(Iterable<MultiCommand> commands) {
+    public void completeSuccess(Iterable<MultiCommand> commands) {
         future.complete(commands);
     }
 
-    protected void completeFailure(Throwable thrown) {
+    public void completeFailure(Throwable thrown) {
         future.completeExceptionally(thrown);
     }
 
