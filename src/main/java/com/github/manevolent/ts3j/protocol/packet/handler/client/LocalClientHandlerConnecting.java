@@ -10,7 +10,7 @@ import com.github.manevolent.ts3j.protocol.packet.PacketBody8Init1;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;

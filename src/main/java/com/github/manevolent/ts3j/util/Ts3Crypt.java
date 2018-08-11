@@ -7,7 +7,7 @@ import Punisher.NaCl.Internal.Ed25519Ref10.ScalarOperations;
 import Punisher.NaCl.Internal.Sha512;
 import com.github.manevolent.ts3j.identity.*;
 import com.github.manevolent.ts3j.license.License;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import org.bouncycastle.asn1.*;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.params.ECDomainParameters;

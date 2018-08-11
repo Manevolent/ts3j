@@ -2,7 +2,7 @@ package com.github.manevolent.ts3j.protocol.packet.transformation;
 
 
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 
 public class InitPacketTransformation extends PacketTransformation {
     private static final byte[] key =

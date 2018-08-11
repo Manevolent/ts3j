@@ -20,7 +20,7 @@ import com.github.manevolent.ts3j.protocol.socket.AbstractTeamspeakSocket;
 import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import java.io.IOException;

@@ -4,7 +4,7 @@ import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import org.bouncycastle.crypto.CipherParameters;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.bouncycastle.crypto.engines.AESEngine;

@@ -22,7 +22,7 @@ import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 
 import java.io.IOException;
 import java.net.*;
