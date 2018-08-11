@@ -27,7 +27,7 @@ public class PacketBody5Pong extends PacketBody {
 
     @Override
     public void read(ByteBuffer buffer) {
-        packetId = buffer.getShort() & 0x000000FFFFF;
+        packetId = (buffer.getShort() & 0xFFFF);
     }
 
     @Override

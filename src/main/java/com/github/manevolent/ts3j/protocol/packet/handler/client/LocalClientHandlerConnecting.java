@@ -39,7 +39,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         randomBytes = new byte[4];
         random.nextBytes(randomBytes);
         step.setRandom(randomBytes);
-        step.setTimestamp((int) ((System.currentTimeMillis() / 1000L) & 0x000000FFFFFF));
+        step.setTimestamp((int) ((System.currentTimeMillis() / 1000L) & 0xFFFF));
         packet.setStep(step);
 
         sendInit1(packet);

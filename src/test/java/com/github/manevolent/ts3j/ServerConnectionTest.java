@@ -15,6 +15,8 @@ import java.net.InetSocketAddress;
 import java.util.Base64;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.assertEquals;
@@ -151,7 +153,7 @@ public class ServerConnectionTest  {
 
             client.subscribeAll();
 
-            client.waitForState(ClientConnectionState.DISCONNECTED, 100000000L);
+            Thread.sleep(1000000L);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

@@ -27,12 +27,12 @@ public class PacketBody7AckLow extends PacketBody {
 
     @Override
     public void read(ByteBuffer buffer) {
-        packetId = buffer.getShort() & 0x0000FFFF;
+        packetId = buffer.getShort() & 0xFFFF;
     }
 
     @Override
     public void write(ByteBuffer buffer) {
-        buffer.putShort((short) (getPacketId() & 0xFFFFFF));
+        buffer.putShort((short) (getPacketId() & 0xFFFF));
     }
 
     @Override

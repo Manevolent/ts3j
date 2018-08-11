@@ -39,7 +39,7 @@ public class PacketTransformation {
 
         temporaryByteBuffer.put((byte) (header.getRole() == ProtocolRole.SERVER ? 0x30 : 0x31));
         temporaryByteBuffer.put((byte) (header.getType().getIndex() & 0xFF));
-        temporaryByteBuffer.putInt(header.getGeneration() & 0x000000FFFFFF);
+        temporaryByteBuffer.putInt(header.getGeneration());
 
         temporaryByteBuffer.put(ivStruct);
 

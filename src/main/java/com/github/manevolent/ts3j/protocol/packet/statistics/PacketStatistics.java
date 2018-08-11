@@ -3,12 +3,14 @@ package com.github.manevolent.ts3j.protocol.packet.statistics;
 
 import com.github.manevolent.ts3j.protocol.Packet;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 
 public class PacketStatistics {
-    private final List<DataPoint> sentPacketList = new LinkedList<>();
-    private final List<DataPoint> receivedPacketList = new LinkedList<>();
+    private final List<DataPoint> sentPacketList = Collections.synchronizedList(new ArrayList<>());
+    private final List<DataPoint> receivedPacketList = Collections.synchronizedList(new ArrayList<>());
 
     private int sentBytes;
     private int sentPackets;
@@ -51,17 +53,21 @@ public class PacketStatistics {
     public int getSentPacketsLastSecond() {
         long now = System.nanoTime() - 1_000_000_000L;
 
-        return (int) sentPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .count();
+        synchronized (sentPacketList) {
+            return (int) sentPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .count();
+        }
     }
 
     public int getSentPacketsLastMinute() {
         long now = System.nanoTime() - 1_000_000_000L;
 
-        return (int) sentPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .count();
+        synchronized (sentPacketList) {
+            return (int) sentPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .count();
+        }
     }
 
     public int getReceivedPackets() {
@@ -71,17 +77,21 @@ public class PacketStatistics {
     public int getReceivedPacketsLastSecond() {
         long now = System.nanoTime() - 1_000_000_000L;
 
-        return (int) receivedPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .count();
+        synchronized (receivedPacketList) {
+            return (int) receivedPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .count();
+        }
     }
 
     public int getReceivedPacketsLastMinute() {
         long now = System.nanoTime() - 60_000_000_000L;
 
-        return (int) receivedPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .count();
+        synchronized (receivedPacketList) {
+            return (int) receivedPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .count();
+        }
     }
 
 
@@ -92,41 +102,50 @@ public class PacketStatistics {
     public int getSentBytesLastMinute() {
         long now = System.nanoTime() - 60_000_000_000L;
 
-        return sentPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .map(DataPoint::getSize)
-                .reduce((a, b) -> a + b)
-                .orElse(0);
+
+        synchronized (sentPacketList) {
+            return sentPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .map(DataPoint::getSize)
+                    .reduce((a, b) -> a + b)
+                    .orElse(0);
+        }
     }
 
     public int getSentBytesLastSecond() {
         long now = System.nanoTime() - 1_000_000_000L;
 
-        return sentPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .map(DataPoint::getSize)
-                .reduce((a, b) -> a + b)
-                .orElse(0);
+        synchronized (sentPacketList) {
+            return sentPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .map(DataPoint::getSize)
+                    .reduce((a, b) -> a + b)
+                    .orElse(0);
+        }
     }
 
     public int getReceivedBytesLastMinute() {
         long now = System.nanoTime() - 60_000_000_000L;
 
-        return receivedPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .map(DataPoint::getSize)
-                .reduce((a, b) -> a + b)
-                .orElse(0);
+        synchronized (receivedPacketList) {
+            return receivedPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .map(DataPoint::getSize)
+                    .reduce((a, b) -> a + b)
+                    .orElse(0);
+        }
     }
 
     public int getReceivedBytesLastSecond() {
         long now = System.nanoTime() - 1_000_000_000L;
 
-        return receivedPacketList.stream()
-                .filter(x -> x.getTime() >= now)
-                .map(DataPoint::getSize)
-                .reduce((a, b) -> a + b)
-                .orElse(0);
+        synchronized (receivedPacketList) {
+            return receivedPacketList.stream()
+                    .filter(x -> x.getTime() >= now)
+                    .map(DataPoint::getSize)
+                    .reduce((a, b) -> a + b)
+                    .orElse(0);
+        }
     }
 
     private final class DataPoint {

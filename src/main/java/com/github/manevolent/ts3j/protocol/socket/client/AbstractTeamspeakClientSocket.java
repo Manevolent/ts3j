@@ -269,9 +269,12 @@ public abstract class AbstractTeamspeakClientSocket
                         )
                 );
                 break;
-            /*case PING:
-                counter = localSendCounter.get(PacketBodyType.PING).current();
-                break;*/
+            case PING:
+                for (int i = 0 ; i < 8000; i ++)
+                    counter = localSendCounter.get(PacketBodyType.PING).next();
+
+                counter = localSendCounter.get(PacketBodyType.PING).next();
+                break;
             case INIT1:
                 counter = new Pair<>(101, 0);
                 break;
@@ -674,7 +677,7 @@ public abstract class AbstractTeamspeakClientSocket
                     lastResponse = System.currentTimeMillis();
                     response = pingQueue.get(((PacketBody5Pong)packet.getBody()).getPacketId());
                     if (response == null) {
-                        Ts3Debugging.debug("Unrecognized PONG: " + ((PacketBody6Ack) packet.getBody()).getPacketId());
+                        Ts3Debugging.debug("Unrecognized PONG: " + ((PacketBody5Pong) packet.getBody()).getPacketId());
                     } else {
                         lastResponse = System.currentTimeMillis();
                     }
