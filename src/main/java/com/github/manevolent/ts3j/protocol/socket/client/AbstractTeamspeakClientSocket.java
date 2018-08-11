@@ -269,12 +269,6 @@ public abstract class AbstractTeamspeakClientSocket
                         )
                 );
                 break;
-            case PING:
-                for (int i = 0 ; i < 8000; i ++)
-                    counter = localSendCounter.get(PacketBodyType.PING).next();
-
-                counter = localSendCounter.get(PacketBodyType.PING).next();
-                break;
             case INIT1:
                 counter = new Pair<>(101, 0);
                 break;
