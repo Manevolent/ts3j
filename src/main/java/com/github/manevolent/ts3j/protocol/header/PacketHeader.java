@@ -110,4 +110,6 @@ public abstract class PacketHeader {
         if (packetGeneration < 0) throw new IllegalArgumentException("packetGeneration");
         this.packetGeneration = packetGeneration;
     }
+
+    public abstract PacketHeader clone();
 }

@@ -2,6 +2,7 @@ package com.github.manevolent.ts3j;
 
 import com.github.manevolent.ts3j.util.QuickLZ;
 import junit.framework.TestCase;
+import org.bouncycastle.util.encoders.Base64;
 
 import java.util.Random;
 
@@ -28,6 +29,6 @@ public class CompressionTest extends TestCase {
             r.nextBytes(b);
             QuickLZ.decompress(QuickLZ.compress(b, 3));
         }
-    }
+     }
 
 }

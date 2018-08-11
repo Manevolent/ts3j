@@ -1,6 +1,8 @@
-package com.github.manevolent.ts3j.protocol.packet;
+package com.github.manevolent.ts3j.protocol.packet.fragment;
 
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody;
+import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
 
 import java.nio.ByteBuffer;
 

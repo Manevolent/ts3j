@@ -56,4 +56,20 @@ public class ClientPacketHeader extends PacketHeader {
     public int getSize() {
         return super.getSize() + 2 + 1;
     }
+
+    @Override
+    public PacketHeader clone() {
+        ClientPacketHeader header = new ClientPacketHeader();
+        header.setPacketId(getPacketId());
+        header.setType(getType());
+        header.setClientId(getClientId());
+        header.setGeneration(getGeneration());
+        header.setPacketFlags(getPacketFlags());
+
+        byte[] mac = new byte[8];
+        System.arraycopy(getMac(), 0, mac, 0, 8);
+        header.setMac(mac);
+
+        return header;
+    }
 }

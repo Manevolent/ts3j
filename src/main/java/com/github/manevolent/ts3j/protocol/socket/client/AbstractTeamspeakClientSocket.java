@@ -11,6 +11,9 @@ import com.github.manevolent.ts3j.protocol.header.ClientPacketHeader;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.*;
+import com.github.manevolent.ts3j.protocol.packet.fragment.Fragments;
+import com.github.manevolent.ts3j.protocol.packet.fragment.PacketBodyFragment;
+import com.github.manevolent.ts3j.protocol.packet.fragment.PacketReassembly;
 import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
 import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandler;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
@@ -52,7 +55,7 @@ public abstract class AbstractTeamspeakClientSocket
 
     private final LinkedBlockingDeque<Packet> readQueue = new LinkedBlockingDeque<>(65536);
 
-    private final Map<PacketBodyType, Reassembly> reassemblyQueue = new ConcurrentHashMap<>();
+    private final Map<PacketBodyType, PacketReassembly> reassemblyQueue = new ConcurrentHashMap<>();
 
     private final Map<Integer, PacketResponse> pingQueue = new ConcurrentHashMap<>();
     private final Map<Integer, PacketResponse> sendQueue = new ConcurrentHashMap<>();
@@ -60,6 +63,8 @@ public abstract class AbstractTeamspeakClientSocket
 
     private final Map<PacketBodyType, LocalCounter> localSendCounter = new ConcurrentHashMap<>();
     private final Map<PacketBodyType, RemoteCounter> remoteSendCounter = new ConcurrentHashMap<>();
+
+    private final Map<PacketBodyType, Object> sendLocks = new HashMap<>();
 
     private CommandProcessor commandProcessor;
 
@@ -104,7 +109,7 @@ public abstract class AbstractTeamspeakClientSocket
         // Initialize reassembly queue
         for (PacketBodyType bodyType : PacketBodyType.values())
             if (bodyType.isSplittable())
-                reassemblyQueue.put(bodyType, new Reassembly());
+                reassemblyQueue.put(bodyType, new PacketReassembly());
 
         // Initialize counters
         for (PacketBodyType bodyType : PacketBodyType.values()) {
@@ -115,6 +120,8 @@ public abstract class AbstractTeamspeakClientSocket
                 localSendCounter.put(bodyType, new LocalCounterFull(65536, true));
                 remoteSendCounter.put(bodyType, new RemoteCounterFull(65536, 100));
             }
+
+            sendLocks.put(bodyType, new Object());
         }
 
         // Initialize statistics
@@ -254,11 +261,13 @@ public abstract class AbstractTeamspeakClientSocket
 
     @Override
     public void writePacket(PacketBody body) throws IOException, TimeoutException {
-        // Construct a network packet
+        // Construct a packet object
         Packet packet = new Packet(body.getRole());
+
+        // Set body
         packet.setBody(body);
 
-        // Generate header
+        // Generate new header (values get filled in as we go, and primarily in writePacketIntl)
         PacketHeader header = newOutgoingHeader();
 
         // Ensure type matches
@@ -270,7 +279,75 @@ public abstract class AbstractTeamspeakClientSocket
         if (header instanceof ClientPacketHeader)
             ((ClientPacketHeader) header).setClientId(clientId);
 
+        // Static header assignments (protocol expectations based on type)
+        switch (header.getType()) {
+            case INIT1:
+            case PONG:
+            case PING:
+                // setHeaderValues will do this, too
+                header.setPacketFlag(HeaderFlag.UNENCRYPTED, true);
+                break;
+            case COMMAND:
+            case COMMAND_LOW:
+                header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
+                break;
+            case VOICE:
+                // > X is a ushort in H2N order of an own audio packet counter
+                //     it seems it can be the same as the packet counter so we will let the packethandler do it.
+                ((PacketBody0Voice)body).setPacketId(header.getPacketId());
+                break;
+        }
+
+        // Assign header pointer
+        packet.setHeader(header);
+
+        // Lower-level write; helper is done
+        writePacket(packet);
+    }
+
+    @Override
+    public void writePacket(Packet packet) throws IOException, TimeoutException {
+        // Sanity checks.  People are insane!
+        if (packet.getHeader() == null)
+            throw new NullPointerException("header");
+        else if (packet.getHeader().getType() == null)
+            throw new NullPointerException("header type");
+        else if (packet.getHeader().getRole() != getRole().getOut())
+            throw new IllegalArgumentException("packet role mismatch: " +
+                    packet.getHeader().getRole().name() + " != " +
+                    getRole().getOut().name());
+
+        if (packet.getHeader().getType().isSplittable()) {
+            // Split up the outgoing packet into valid pieces
+            // it's better to do this all at once instead of sending them as they are split,
+            // because we might get halfway through splitting them then throw an exception and
+            // we can't write the rest.
+            List<Packet> packets = Fragments.split(packet);
+
+            // Note, it's very important we send these packets synchronously.
+            // we allow the split to happen multi-thread, but we block until all
+            // chunks are sent synchronously.  So, all chunks of packets are synchronous.
+            // this happens because we care that the packet IDs are contiguous.
+            synchronized (sendLocks.get(packet.getHeader().getType())) {
+                for (Packet piece : packets)
+                    writePacketIntl(piece); // Write the individual piece, incrementing its packet
+            }
+        } else {
+            // Ensure the outbound packet's maximum size isn't too large if it can't be split (which it can't here)
+            if (packet.getSize() > Fragments.MAXIMUM_PACKET_SIZE)
+                throw new IllegalArgumentException("packet too large: " + packet.getSize() + "; " +
+                        packet.getHeader().getType().name() + " cannot split");
+
+            // Don't lock here, for the slight performance benefit.
+            writePacketIntl(packet);
+        }
+    }
+
+    private void writePacketIntl(Packet packet) throws IOException, TimeoutException {
+        PacketHeader header = packet.getHeader();
+
         // Count packet
+        // depends on the actual packet type coming in
         Pair<Integer, Integer> counter;
 
         switch (header.getType()) {
@@ -306,104 +383,20 @@ public abstract class AbstractTeamspeakClientSocket
                 break;
         }
 
+        // Use the counters determined above to generate a packet id and generation id
         header.setPacketId(counter.getKey());
         header.setGeneration(counter.getValue());
 
-        switch (header.getType()) {
-            case INIT1:
-            case PONG:
-            case PING:
-                // setHeaderValues will do this, too
-                header.setPacketFlag(HeaderFlag.UNENCRYPTED, true);
-                break;
-            case COMMAND:
-            case COMMAND_LOW:
-                header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
-                break;
-            case VOICE:
-                // > X is a ushort in H2N order of an own audio packet counter
-                //     it seems it can be the same as the packet counter so we will let the packethandler do it.
-                ((PacketBody0Voice)body).setPacketId(header.getPacketId());
-                break;
-        }
-
-        packet.setHeader(header);
-
-        writePacket(packet);
-    }
-
-    @Override
-    public void writePacket(Packet packet) throws IOException, TimeoutException {
-        if (packet.getHeader() == null)
-            throw new NullPointerException("header");
-        else if (packet.getHeader().getRole() != getRole().getOut())
-            throw new IllegalArgumentException("packet role mismatch: " +
-                    packet.getHeader().getRole().name() + " != " +
-                    getRole().getOut().name());
-
-        if (packet.getSize() > 500) {
-            int totalSize = packet.getBody().getSize();
-
-            ByteBuffer outputBuffer = ByteBuffer.allocate(totalSize);
-            packet.getBody().write(outputBuffer);
-
-            if (packet.getHeader().getType().isCompressible()) {
-                byte[] compressed = QuickLZ.compress(outputBuffer.array(), 1);
-                packet.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
-                packet.setBody(new PacketBodyCompressed(packet.getHeader().getType(), packet.getRole(), compressed));
-
-                if (packet.getSize() <= 500) {
-                    writePacketIntl(packet);
-                    return;
-                }
-            }
-
-            if (!packet.getHeader().getType().isSplittable())
-                throw new IllegalArgumentException("packet too large: " + packet.getSize() + " (cannot split)");
-
-            for (int offs = 0; offs < totalSize;) {
-                int flush = Math.min(500 - packet.getHeader().getSize(), totalSize - offs);
-                boolean first = offs == 0;
-                boolean last = flush < 500;
-
-                Packet piece = new Packet(packet.getRole());
-                piece.setHeader(packet.getHeader());
-
-                if (!first) // Only first packet has flags
-                    piece.getHeader().setPacketFlags(HeaderFlag.NONE.getIndex());
-
-                // First and last packet get FRAGMENTED flag
-                piece.getHeader().setPacketFlag(HeaderFlag.FRAGMENTED, first || last);
-
-                byte[] pieceBytes = new byte[flush];
-                System.arraycopy(outputBuffer.array(), offs, pieceBytes, 0, flush);
-
-                piece.setBody(new PacketBodyFragment(
-                        packet.getHeader().getType(),
-                        packet.getHeader().getRole(),
-                        pieceBytes
-                ));
-
-                writePacketIntl(piece);
-
-                offs += flush;
-            }
-        } else {
-            writePacketIntl(packet);
-        }
-    }
-
-    private void writePacketIntl(Packet packet) throws IOException, TimeoutException {
         // Flush to a buffer
         ByteBuffer outputBuffer;
 
-        if (!packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) {
+        if (!packet.getHeader().getPacketFlag(HeaderFlag.UNENCRYPTED)) { // encrypt out
             Ts3Debugging.debug("[PROTOCOL] ENCRYPT " +
                     packet.getHeader().getType().name() + " generation=" +
                     packet.getHeader().getGeneration());
 
             outputBuffer = getTransformation().encrypt(packet);
-        } else {
+        } else { // "fake encrypt"
             if (packet.getHeader().getType() == PacketBodyType.INIT1) {
                 System.arraycopy(INIT1_MAC, 0, packet.getHeader().getMac(), 0, 8);
             } else {
@@ -417,6 +410,7 @@ public abstract class AbstractTeamspeakClientSocket
             packet.writeBody(outputBuffer);
         }
 
+        // Construct actual network packet now that the protocol is finished.
         NetworkPacket networkPacket = new NetworkPacket(
                 new DatagramPacket(outputBuffer.array(), outputBuffer.position()),
                 packet.getHeader(),
@@ -459,8 +453,10 @@ public abstract class AbstractTeamspeakClientSocket
 
         Ts3Debugging.debug("[PROTOCOL] WRITE " + networkPacket.getHeader().getType().name());
 
+        // Real network send
         writeNetworkPacket(networkPacket);
 
+        // Now that the packet is sent, we need to track the stats
         PacketKind kind = networkPacket.getHeader().getType().getKind();
         if (kind != null)
             packetStatistics
@@ -656,6 +652,8 @@ public abstract class AbstractTeamspeakClientSocket
 
                         pong.getHeader().setPacketFlag(HeaderFlag.UNENCRYPTED, true);
                         pong.getHeader().setPacketId(packet.getHeader().getPacketId());
+                        pong.getHeader().setType(PacketBodyType.PONG);
+
                         pong.setBody(new PacketBody5Pong(getRole().getOut(), packet.getHeader().getPacketId()));
 
                         writePacket(pong);
@@ -1350,89 +1348,4 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
-    private class Reassembly {
-        private final Map<Integer, Packet> queue = new LinkedHashMap<>();
-        private boolean state = false;
-
-        public Packet reassemble(Packet lastFragment) throws IOException {
-            // Pull out all other packets in the queue before this one which would also be fragmented
-            List<Packet> reassemblyList = new ArrayList<>();
-            for (int packetId = lastFragment.getHeader().getPacketId();; packetId--) {
-                Packet olderPacket = queue.get(packetId);
-
-                if (olderPacket == null)
-                    break; // Chain breaks here
-                else if (olderPacket.getHeader().getType() != lastFragment.getHeader().getType())
-                    continue; // skip
-                else {
-                    reassemblyList.add(olderPacket);
-                }
-            }
-
-            // Reverse the collection
-            Collections.reverse(reassemblyList);
-
-            // Rebuild a master packet from the contents of all previous packet fragments
-            int totalLength = reassemblyList.stream().mapToInt(x -> x.getBody().getSize()).sum() + lastFragment.getBody().getSize();
-            if (totalLength < 0) throw new IllegalArgumentException("reassembly too small: " + totalLength);
-
-            Packet firstPacket = reassemblyList.get(0);
-            Packet reassembledPacket = new Packet(firstPacket.getRole());
-            reassembledPacket.setHeader(firstPacket.getHeader());
-
-            ByteBuffer reassemblyBuffer = ByteBuffer.allocate(totalLength);
-
-            reassembledPacket.getHeader().setPacketFlag(HeaderFlag.FRAGMENTED, false);
-
-            for (Packet old : reassemblyList)
-                old.writeBody(reassemblyBuffer);
-
-            if (firstPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
-                reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array()));
-
-            reassembledPacket.readBody(reassemblyBuffer);
-
-            return reassembledPacket;
-        }
-
-        public Packet put(Packet packet) throws IOException {
-            Packet reassembled;
-
-            if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
-                boolean oldState = state;
-
-                state = !state;
-
-                if (!(packet.getBody() instanceof PacketBodyFragment))
-                    throw new IllegalArgumentException("packet fragment object is not representative of a fragment");
-
-                queue.put(packet.getHeader().getPacketId(), packet);
-
-                if (oldState) {
-                    reassembled = reassemble(packet);
-                } else {
-                    reassembled = null;
-                }
-            } else {
-                if (state) {
-                    queue.put(packet.getHeader().getPacketId(), packet);
-
-                    reassembled = null;
-                } else {
-                    reassembled = packet;
-                }
-            }
-
-            return reassembled;
-        }
-
-        public boolean isReassembling() {
-            return state;
-        }
-
-        public void reset() {
-            state = false;
-            queue.clear();
-        }
-    }
 }

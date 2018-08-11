@@ -146,6 +146,8 @@ public class ServerConnectionTest  {
 
             client.subscribeAll();
 
+            for (int i = 0; i < 1000; i ++) client.getClientInfo(client.getClientId());
+
             Thread.sleep(100000000L);
         } catch (Throwable ex) {
             ex.printStackTrace();

@@ -27,6 +27,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
         switch (packet.getBody().getType()) {
             case COMMAND:
                 Ts3Debugging.debug(((PacketBody2Command) packet.getBody()).getText());
+
                 try {
                     handleCommand(MultiCommand.parse(
                             packet.getRole(),
@@ -35,8 +36,11 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                 } catch (CommandProcessException e) {
                     throw new IOException(e);
                 }
+
                 break;
             case COMMAND_LOW:
+                Ts3Debugging.debug("[LOW] " + ((PacketBody2Command) packet.getBody()).getText());
+
                 try {
                     handleCommand(MultiCommand.parse(
                             packet.getRole(),
@@ -45,6 +49,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                 } catch (CommandProcessException e) {
                     throw new IOException(e);
                 }
+
                 break;
         }
     }
