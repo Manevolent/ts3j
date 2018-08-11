@@ -5,6 +5,8 @@ The aim of this project is to provide a full client, capable of performing all f
 
 If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the ground running with this API as I am using several of their objects for the query side of the application.  I will also bring in as many commands as I can, meaning with a little bit of elbow grease you can move from a serverQuery bot to a TS3J bot more easily than otherwise.  Reason being, my current audio bot used serverQuery.
 
+I recommend using tomp2p's opus-wrapper and encode 20ms slices of your PCM stream, in stereo, and provide the OPUS_MUSIC type through the Microphone class.  Ideally, you will encode packets on a separate thread, and place them into a Queue, where you will then dequeue them on the provide() method in Microphone.  This ensures the lowest possible jitter.
+
 TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
 
 # Maven
