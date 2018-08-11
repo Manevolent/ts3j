@@ -2,7 +2,7 @@ package com.github.manevolent.ts3j;
 
 import com.github.manevolent.ts3j.protocol.socket.client.AbstractTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import junit.framework.TestCase;
 
 public class PacketCounterTest extends TestCase {

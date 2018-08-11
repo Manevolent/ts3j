@@ -9,7 +9,7 @@ import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
 import com.github.manevolent.ts3j.protocol.packet.transformation.PacketTransformation;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import javafx.util.Pair;
+import com.github.manevolent.ts3j.util.Pair;
 import junit.framework.TestCase;
 
 import java.math.BigInteger;
