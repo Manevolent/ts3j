@@ -851,7 +851,7 @@ public abstract class AbstractTeamspeakClientSocket
                     // on us
 
                     getHandler().handlePacket(packet);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     if (e instanceof InterruptedException) continue;
 
                     Ts3Debugging.debug("Problem handling packet", e);
