@@ -378,15 +378,15 @@ public abstract class AbstractTeamspeakClientSocket
                 break;
         }
 
+        // Use the counters determined above to generate a packet id and generation id
+        header.setPacketId(counter.getKey());
+        header.setGeneration(counter.getValue());
+
         if (header.getType() == PacketBodyType.VOICE) {
             // > X is a ushort in H2N order of an own audio packet counter
             //     it seems it can be the same as the packet counter so we will let the packethandler do it.
             ((PacketBody0Voice)packet.getBody()).setPacketId(header.getPacketId());
         }
-
-        // Use the counters determined above to generate a packet id and generation id
-        header.setPacketId(counter.getKey());
-        header.setGeneration(counter.getValue());
 
         // Flush to a buffer
         ByteBuffer outputBuffer;
