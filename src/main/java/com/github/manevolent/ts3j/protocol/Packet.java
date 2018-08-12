@@ -136,4 +136,10 @@ public final class Packet {
     public long getCreatedNanotime() {
         return creationNanotime;
     }
+
+    public byte[] toByteArray() {
+        ByteBuffer buffer = ByteBuffer.allocate(getSize());
+        write(buffer);
+        return buffer.array();
+    }
 }

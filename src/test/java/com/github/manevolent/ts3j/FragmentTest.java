@@ -14,7 +14,6 @@ import com.github.manevolent.ts3j.util.Ts3Debugging;
 import junit.framework.TestCase;
 import org.bouncycastle.util.encoders.Base64;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
@@ -27,7 +26,7 @@ public class FragmentTest extends TestCase {
     public void testParser() throws Exception {
         Ts3Debugging.setEnabled(true);
 
-        byte[] data = new byte[2000];
+        byte[] data = new byte[1503];
         new Random(0x1234567).nextBytes(data);
 
         ClientPacketHeader header = new ClientPacketHeader();
