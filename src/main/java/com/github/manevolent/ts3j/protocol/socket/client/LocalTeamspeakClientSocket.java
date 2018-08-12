@@ -267,7 +267,7 @@ public class LocalTeamspeakClientSocket
 
             microphoneThread = new HighPrecisionRecurrentTask(
                     20,
-                    0.020F,
+                    0.01F,
                     new MicrophoneTask()
             );
             microphoneThread.setDaemon(true);

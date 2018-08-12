@@ -68,7 +68,7 @@ public class PacketReassembly {
             reassembledPacket.readBody(reassemblyBuffer);
 
             // Remove read packets
-            for (Integer packetId : packetIds) queue.remove(packetId);
+            packetIds.forEach(queue::remove);
 
             return reassembledPacket;
         } catch (Exception ex) {
