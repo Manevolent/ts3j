@@ -9,7 +9,6 @@ import com.github.manevolent.ts3j.protocol.packet.fragment.Fragments;
 import com.github.manevolent.ts3j.protocol.packet.fragment.PacketReassembly;
 import com.github.manevolent.ts3j.protocol.socket.client.AbstractTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Pair;
-import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import junit.framework.TestCase;
 import org.bouncycastle.util.encoders.Base64;

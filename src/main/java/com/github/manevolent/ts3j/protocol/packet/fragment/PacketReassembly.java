@@ -3,7 +3,6 @@ package com.github.manevolent.ts3j.protocol.packet.fragment;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.util.QuickLZ;
-import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -19,6 +18,8 @@ public class PacketReassembly {
 
         try {
             // Pull out all other packets in the queue before this one which would also be fragmented
+            List<Integer> packetIds = new ArrayList<>();
+
             for (int packetId = lastFragment.getHeader().getPacketId(); ; packetId--) {
                 if (packetId < 0) packetId = 65536 + packetId;
 
@@ -27,9 +28,14 @@ public class PacketReassembly {
                 if (olderPacket == null)
                     break; // Chain breaks here
                 else if (olderPacket.getHeader().getType() != lastFragment.getHeader().getType())
-                    continue; // skip
+                    continue; // skip???
                 else {
+                    packetIds.add(packetId);
                     reassemblyList.add(olderPacket);
+
+                    if (lastFragment.getHeader().getPacketId() != packetId &&
+                            olderPacket.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED))
+                        break;
                 }
             }
 
@@ -60,6 +66,9 @@ public class PacketReassembly {
                 reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array()));
 
             reassembledPacket.readBody(reassemblyBuffer);
+
+            // Remove read packets
+            for (Integer packetId : packetIds) queue.remove(packetId);
 
             return reassembledPacket;
         } catch (Exception ex) {
