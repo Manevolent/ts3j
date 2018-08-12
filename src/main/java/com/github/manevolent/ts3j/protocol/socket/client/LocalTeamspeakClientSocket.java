@@ -399,6 +399,8 @@ public class LocalTeamspeakClientSocket
     }
 
     private class MicrophoneTask implements Runnable {
+        private boolean wasSendingAudio = false;
+
         @Override
         public void run() {
             if (!isConnected()) return;
@@ -421,6 +423,23 @@ public class LocalTeamspeakClientSocket
 
                 try {
                     writePacket(voice);
+
+                    wasSendingAudio = true;
+                } catch (Exception e) {
+                    // All we are really concerned about here is a disconnection event, in which case the loop
+                    // will exit.
+                    getExceptionHandler().accept(e);
+                }
+            } else if (wasSendingAudio) {
+                PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
+
+                voice.setCodecType(microphone.getCodec());
+                voice.setCodecData(new byte[0]);
+
+                try {
+                    writePacket(voice);
+
+                    wasSendingAudio = false;
                 } catch (Exception e) {
                     // All we are really concerned about here is a disconnection event, in which case the loop
                     // will exit.
