@@ -189,7 +189,7 @@ public class LocalTeamspeakClientSocket
 
             header.read(buffer);
 
-            Ts3Debugging.debug("[NETWORK] READ" +
+            Ts3Debugging.debug("[NETWORK] READ " + header.getType() +
                     " id=" + header.getPacketId() +
                     " len=" + packet.getLength() +
                     " from " + packet.getSocketAddress());
@@ -214,10 +214,10 @@ public class LocalTeamspeakClientSocket
         else if (remote == null)
             throw new IOException(new NullPointerException("remote"));
 
-        Ts3Debugging.debug("[NETWORK] WRITE id=" + packet.getHeader().getPacketId() + " len=" +
-                packet.getDatagram().getLength()
-                + " to " +
-                remote.toString());
+        Ts3Debugging.debug("[NETWORK] WRITE " + packet.getHeader().getType() +
+                " id=" + packet.getHeader().getPacketId() +
+                " len=" + packet.getDatagram().getLength() +
+                " to " + remote.toString());
 
         packet.getDatagram().setSocketAddress(remote);
 

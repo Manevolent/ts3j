@@ -351,7 +351,7 @@ public abstract class AbstractTeamspeakClientSocket
         Pair<Integer, Integer> counter;
 
         switch (header.getType()) {
-            case ACK:
+            /*case ACK:
                 counter = new Pair<>(
                         ((PacketBody6Ack)packet.getBody()).getPacketId(),
                         remoteSendCounter.get(PacketBodyType.ACK).getGeneration(
@@ -374,7 +374,7 @@ public abstract class AbstractTeamspeakClientSocket
                                 ((PacketBody5Pong) packet.getBody()).getPacketId()
                         )
                 );
-                break;
+                break;*/
             case INIT1:
                 counter = new Pair<>(101, 0);
                 break;
