@@ -2,6 +2,8 @@ package com.github.manevolent.ts3j.protocol.packet.fragment;
 
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
+import com.github.manevolent.ts3j.protocol.socket.client.AbstractTeamspeakClientSocket;
+import com.github.manevolent.ts3j.util.Pair;
 import com.github.manevolent.ts3j.util.QuickLZ;
 
 import java.io.IOException;
@@ -10,20 +12,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class PacketReassembly {
+    private final AbstractTeamspeakClientSocket.LocalCounter counter =
+            new AbstractTeamspeakClientSocket.LocalCounterFull(65536, true);
+
     private final Map<Integer, Packet> queue = new LinkedHashMap<>();
-    private int currentPacketId = 0;
 
-    public void setPacketId(int currentPacketId) {
-        this.currentPacketId = currentPacketId;
-    }
-
-    public boolean put(Packet packet) throws IOException {
+    public void put(Packet packet) throws IOException {
         queue.put(packet.getHeader().getPacketId(), packet);
-
-        return currentPacketId == packet.getHeader().getPacketId();
     }
 
     public Packet next() throws IOException {
+        if (queue.size() <= 0) return null;
+
         List<Packet> reassemblyList = new ArrayList<>();
 
         try {
@@ -32,33 +32,38 @@ public class PacketReassembly {
 
             boolean state = false;
 
-            for (int packetId = currentPacketId; ; packetId++) {
-                if (packetId >= 65536) packetId = 0;
+            AbstractTeamspeakClientSocket.LocalCounter temporaryCounter =
+                    new AbstractTeamspeakClientSocket.LocalCounterFull(65536, true);
 
-                Packet packet = queue.get(packetId);
+            Pair<Integer, Integer> currentPacketId = counter.current();
+
+            temporaryCounter.setPacketId(currentPacketId.getKey());
+            temporaryCounter.setGeneration(currentPacketId.getValue());
+
+            while (true) {
+                Pair<Integer, Integer> thisPacketId = temporaryCounter.current();
+                Packet packet = queue.get(thisPacketId.getKey());
 
                 if (packet == null)
                     break; // Chain breaks here
                 else {
-                    packetIds.add(packetId);
+                    packetIds.add(thisPacketId.getKey());
                     reassemblyList.add(packet);
 
                     if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
                         state = !state;
 
                         if (!state) {
-                            currentPacketId += packetIds.size();
                             break; // fragmentation stopped, we found the last packet
-                        } else
-                            continue; // keep collecting fragments
+                        }
                     } else if (!state) {
-                        currentPacketId ++;
                         break; // don't reassemble this packet, it's not a fragment
                     } else if (state) {
                         // keep collecting fragments
-                        continue;
                     }
                 }
+
+                temporaryCounter.next();
             }
 
             if (state) return null; // cannot reassemble yet because we don't have all fragments
@@ -94,6 +99,9 @@ public class PacketReassembly {
             // Remove read packets
             packetIds.forEach(queue::remove);
 
+            // Count
+            counter.next(packetIds.size());
+
            return reassembledPacket;
         } catch (Exception ex) {
             throw new IOException("Problem reassembling " + reassemblyList.size() + " packet(s): [" +
@@ -106,7 +114,7 @@ public class PacketReassembly {
     }
 
     public void reset() {
-        currentPacketId = 0;
+        counter.reset();
         queue.clear();
     }
 }

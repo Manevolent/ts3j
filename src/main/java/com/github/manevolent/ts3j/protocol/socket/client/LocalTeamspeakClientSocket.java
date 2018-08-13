@@ -60,7 +60,6 @@ public class LocalTeamspeakClientSocket
     private List<TS3Listener> listeners = new LinkedList<>();
 
     private int acceptingReturnCode = Integer.MAX_VALUE;
-    private int lastReturnCode = 0;
 
     private Integer serverId = null;
 
@@ -251,7 +250,7 @@ public class LocalTeamspeakClientSocket
 
             serverId = null;
             awaitingCommands.clear();
-            acceptingReturnCode = lastReturnCode = 0;
+            acceptingReturnCode = 0;
 
             setOption("client.hostname", remote.getHostString());
 
@@ -341,10 +340,10 @@ public class LocalTeamspeakClientSocket
             if (getState() != ClientConnectionState.CONNECTED)
                 throw new IOException("not connected");
 
-            int returnCode;
-
-            // sync may not be necessary here
-            returnCode = lastReturnCode++;
+            int maxReturnCode = calculateAcceptingReturnCode();
+            if (maxReturnCode == Integer.MAX_VALUE) maxReturnCode = 0;
+            else maxReturnCode = maxReturnCode + 1;
+            int returnCode = maxReturnCode;
 
             command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
 

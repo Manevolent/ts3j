@@ -25,40 +25,47 @@ public class FragmentTest extends TestCase {
     public void testParser() throws Exception {
         Ts3Debugging.setEnabled(true);
 
-        byte[] data = new byte[5003];
-        new Random(0x1234567).nextBytes(data);
-
-        ClientPacketHeader header = new ClientPacketHeader();
-        Packet largePacket = new Packet(ProtocolRole.CLIENT, header);
-        header.setType(PacketBodyType.COMMAND);
-
-        String text = Base64.toBase64String(data);
-        largePacket.setBody(new PacketBody2Command(ProtocolRole.CLIENT, text));
-
-        PacketReassembly reassembly = new PacketReassembly();
         AbstractTeamspeakClientSocket.LocalCounterFull counter =
                 new AbstractTeamspeakClientSocket.LocalCounterFull(65536, true);
 
-        counter.setPacketId(65534); // Test wrapping around the generation at the same time :)
-        reassembly.setPacketId(65535);
+        PacketReassembly reassembly = new PacketReassembly();
 
-        List<Packet> pieces = Fragments.split(largePacket);
-        Ts3Debugging.debug("Created " + pieces.size() + " pieces (total=" + data.length + ").");
+        for (int i = 0; i < 10_000; i ++) {
+            byte[] data = new byte[5003];
+            new Random(0x1234567).nextBytes(data);
 
-        for (Packet piece : pieces) {
-            Pair<Integer, Integer> packetId = counter.next();
-            piece.getHeader().setPacketId(packetId.getKey());
-            piece.getHeader().setGeneration(packetId.getValue());
+            ClientPacketHeader header = new ClientPacketHeader();
+            Packet largePacket = new Packet(ProtocolRole.CLIENT, header);
+            header.setType(PacketBodyType.COMMAND);
 
-            reassembly.put(piece);
-        }
+            String text = Base64.toBase64String(data);
+            largePacket.setBody(new PacketBody2Command(ProtocolRole.CLIENT, text));
 
-        Packet reassembled;
-        while (((reassembled = reassembly.next()) != null)) {
-            assertEquals(
-                    ((PacketBody2Command) largePacket.getBody()).getText(),
-                    ((PacketBody2Command) reassembled.getBody()).getText()
-            );
+            List<Packet> pieces = Fragments.split(largePacket);
+
+            for (Packet piece : pieces) {
+                Pair<Integer, Integer> packetId = counter.current();
+
+                piece.getHeader().setPacketId(packetId.getKey());
+                piece.getHeader().setGeneration(packetId.getValue());
+
+                reassembly.put(piece);
+
+                counter.next();
+            }
+
+            Packet reassembled;
+            boolean read = false;
+            while (((reassembled = reassembly.next()) != null)) {
+                assertEquals(
+                        ((PacketBody2Command) largePacket.getBody()).getText(),
+                        ((PacketBody2Command) reassembled.getBody()).getText()
+                );
+
+                read = true;
+            }
+
+            assertEquals(true, read);
         }
     }
 

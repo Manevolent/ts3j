@@ -68,9 +68,7 @@ public abstract class AbstractTeamspeakClientSocket
 
     private CommandProcessor commandProcessor;
 
-    private Consumer<Throwable> exceptionHandler = throwable -> {
-        throwable.printStackTrace();
-    };
+    private Consumer<Throwable> exceptionHandler = Throwable::printStackTrace;
 
     private Identity identity = null;
     private ClientConnectionState connectionState = null;
@@ -929,7 +927,9 @@ public abstract class AbstractTeamspeakClientSocket
         private int tries = 1, maxTries;
         private boolean willResend;
 
-        public PacketResponse(NetworkPacket sentPacket, Map<Integer, PacketResponse> responsibleQueue, int maxTries) {
+        public PacketResponse(NetworkPacket sentPacket,
+                              Map<Integer, PacketResponse> responsibleQueue,
+                              int maxTries) {
             this.sentPacket = sentPacket;
             this.responsibleQueue = responsibleQueue;
             this.maxTries = maxTries;
@@ -1248,6 +1248,12 @@ public abstract class AbstractTeamspeakClientSocket
     public interface LocalCounter {
         Pair<Integer, Integer> next();
 
+        default Pair<Integer, Integer> next(int n) {
+            Pair<Integer, Integer> last = current();
+            for (int i = 0; i < n; i ++) last = next();
+            return last;
+        }
+
         int getPacketId();
         boolean setPacketId(int packetId);
 
@@ -1340,7 +1346,6 @@ public abstract class AbstractTeamspeakClientSocket
         @Override
         public void setGeneration(int i) {
             synchronized (sendLock) {
-                Ts3Debugging.debug("setGeneration: " + i);
                 this.generationId = i;
             }
         }
