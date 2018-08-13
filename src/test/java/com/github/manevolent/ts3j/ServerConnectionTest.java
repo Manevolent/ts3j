@@ -27,8 +27,7 @@ public class ServerConnectionTest  {
         );
 
         identity.improveSecurity(10);
-        while (true) {
-            try {
+
                 client.setIdentity(identity);
 
                 client.setNickname("Hello from Java");
@@ -152,14 +151,7 @@ public class ServerConnectionTest  {
 
                 client.listClients();
 
-                Thread.sleep(1000L);
+                Thread.sleep(10000L);
 
-                client.listClients();
-
-                client.disconnect();
-            } catch (Throwable ex) {
-                ex.printStackTrace();
-            }
-        }
     }
 }

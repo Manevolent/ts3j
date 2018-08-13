@@ -163,6 +163,8 @@ public class LocalTeamspeakClientSocket
 
             try {
                 socket.receive(packet);
+            } catch (SocketTimeoutException ex) {
+                throw ex;
             } catch (SocketException ex) {
                 if (socket.isClosed()) throw new EOFException();
                 else throw ex;
