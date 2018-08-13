@@ -4,7 +4,6 @@ import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
 import com.github.manevolent.ts3j.protocol.packet.PacketBodyCompressed;
 import com.github.manevolent.ts3j.util.QuickLZ;
-import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -39,8 +38,17 @@ public final class Fragments {
             if (packet.getHeader().getType().isCompressible()) {
                 byte[] compressed = QuickLZ.compress(outputBuffer.array(), 1);
 
-                packet.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
-                packet.setBody(new PacketBodyCompressed(packet.getHeader().getType(), packet.getRole(), compressed));
+                Packet compressedPacket = new Packet(packet.getRole());
+                compressedPacket.setHeader(packet.getHeader().clone());
+                compressedPacket.getHeader().setPacketFlag(HeaderFlag.COMPRESSED, true);
+                compressedPacket.setBody(
+                        new PacketBodyCompressed(
+                                packet.getHeader().getType(), packet.getRole(),
+                                compressed
+                        )
+                );
+
+                packet = compressedPacket;
 
                 if (packet.getSize() <= MAXIMUM_PACKET_SIZE)
                     return Collections.singletonList(packet);

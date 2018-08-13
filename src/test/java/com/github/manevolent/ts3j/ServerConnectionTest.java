@@ -147,37 +147,16 @@ public class ServerConnectionTest  {
 
             final long[] t = {System.currentTimeMillis()};
 
-            client.setMicrophone(new Microphone() {
-                @Override
-                public boolean isReady() {
-                    return true;
-                }
-
-                @Override
-                public CodecType getCodec() {
-                    return CodecType.OPUS_MUSIC;
-                }
-
-                @Override
-                public byte[] provide() {
-                    System.err.println(System.currentTimeMillis() - t[0]);
-                    t[0] = System.currentTimeMillis();
-                    return new byte[10];
-                }
-            });
-
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
             client.subscribeAll();
 
-            for (int i = 0; i < 100000; i ++) {
+            while (client.isConnected()) {
                 for (Client c : client.listClients())
                     client.getClientInfo(c.getId());
 
                 Thread.sleep(1000L);
             }
-
-            Thread.sleep(100000000L);
         } catch (Throwable ex) {
             ex.printStackTrace();
         }

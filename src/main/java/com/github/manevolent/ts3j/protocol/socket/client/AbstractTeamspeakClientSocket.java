@@ -95,6 +95,8 @@ public abstract class AbstractTeamspeakClientSocket
     private Map<PacketKind, PacketStatistics> packetStatistics = new LinkedHashMap<>();
     //
 
+    private final List<Packet> handlerBacklog = new LinkedList<>();
+
     private final NetworkReader networkReader = new NetworkReader();
     private Thread networkThread = null;
 
@@ -206,6 +208,8 @@ public abstract class AbstractTeamspeakClientSocket
         clientId = -1;
 
         readQueue.clear();
+
+        handlerBacklog.clear();
 
         for (PacketBodyType bodyType : PacketBodyType.values())
             if (bodyType.isSplittable())
@@ -500,9 +504,7 @@ public abstract class AbstractTeamspeakClientSocket
 
         boolean fragment = networkPacket.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED);
 
-        if (networkPacket.getHeader().getType().isSplittable()) {
-            fragment = fragment || reassemblyQueue.get(networkPacket.getHeader().getType()).isReassembling();
-        } else if (fragment)
+        if (fragment && !networkPacket.getHeader().getType().isSplittable())
             throw new IllegalArgumentException(
                     networkPacket.getHeader().getType() +
                     "packet is fragment, but not splittable"
@@ -538,15 +540,15 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         // Fragment handling
-        if (fragment) {
-            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name() + " fragment");
+        if (networkPacket.getHeader().getType().isSplittable()) {
+            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
 
             packet.setBody(new PacketBodyFragment(networkPacket.getHeader().getType(), getRole().getIn()));
         } else {
+            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
+
             if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) && packet.getHeader().getType().isCompressible())
                 packet.setBody(new PacketBodyCompressed(networkPacket.getHeader().getType(), getRole().getIn()));
-
-            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
         }
 
         // Read raw packet body
@@ -586,6 +588,12 @@ public abstract class AbstractTeamspeakClientSocket
         long timeout;
 
         while (isReading()) {
+            // De-spool spooled-up packets
+            if (handlerBacklog.size() > 0) {
+                Packet packet = handlerBacklog.remove(0);
+                return packet;
+            }
+
             try {
                 timeout = getState() == ClientConnectionState.CONNECTED ?
                         Math.min(1000L, 1000L - (System.currentTimeMillis() - lastPing)) :
@@ -663,12 +671,6 @@ public abstract class AbstractTeamspeakClientSocket
                 }
             }
 
-            // Find if the packet must be reassembled
-            if (packet.getHeader().getType().isSplittable()) {
-                packet = reassemblyQueue.get(packet.getHeader().getType()).put(packet);
-                if (packet == null) continue;
-            }
-
             // Find if the packet is itself an acknowledgement (ACK or ACK_LOW)
             boolean handle;
             final PacketResponse response;
@@ -684,8 +686,6 @@ public abstract class AbstractTeamspeakClientSocket
                     handle = false;
                     break;
                 case ACK_LOW:
-                    lastResponse = System.currentTimeMillis();
-
                     response = sendQueueLow.get(((PacketBody7AckLow)packet.getBody()).getPacketId());
                     if (response == null) {
                         Ts3Debugging.debug("Unrecognized ACK_LOW: " + ((PacketBody6Ack) packet.getBody()).getPacketId());
@@ -696,7 +696,6 @@ public abstract class AbstractTeamspeakClientSocket
                     handle = false;
                     break;
                 case PONG:
-                    lastResponse = System.currentTimeMillis();
                     response = pingQueue.get(((PacketBody5Pong)packet.getBody()).getPacketId());
                     if (response == null) {
                         Ts3Debugging.debug("Unrecognized PONG: " + ((PacketBody5Pong) packet.getBody()).getPacketId());
@@ -733,6 +732,9 @@ public abstract class AbstractTeamspeakClientSocket
                 currentRto = smoothedRtt + Math.max(0D, 4 * smoothedRttVar);
             }
 
+            if (response != null)
+                response.acknowledge(packet);
+
             // This is pulled out of the following IF block so that packet generation can increase correctly
             boolean placed = counter != null && counter.put(packet.getHeader().getPacketId());
 
@@ -742,10 +744,24 @@ public abstract class AbstractTeamspeakClientSocket
                     handle = handle & placed;
             }
 
-            if (response != null) {
-                response.acknowledge(packet);
+            if (handle) {
+                if (packet.getHeader().getType().isSplittable()) {
+                    if (!placed) continue; // reset
+
+                    // Place in the reassembly queue
+                    PacketReassembly reassembly = reassemblyQueue.get(packet.getHeader().getType());
+                    reassembly.put(packet);
+
+                    Packet reassembled;
+                    while ((reassembled = reassembly.next()) != null) {
+                        Ts3Debugging.debug("[PROTOCOL] REASSEMBLE " + reassembled.getHeader().getType().name() +
+                                " id=" + reassembled.getHeader().getPacketId() + " len=" + reassembled.getSize());
+                        handlerBacklog.add(reassembled);
+                    }
+                } else {
+                    handlerBacklog.add(packet);
+                }
             }
-            if (handle) return packet;
         }
 
         throw new IllegalStateException("no longer reading");
@@ -874,7 +890,7 @@ public abstract class AbstractTeamspeakClientSocket
                 } catch (Throwable e) {
                     if (e instanceof InterruptedException) continue;
 
-                    Ts3Debugging.debug("Problem handling packet", e);
+                    getExceptionHandler().accept(e);
                 }
             }
         }

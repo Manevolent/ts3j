@@ -25,7 +25,7 @@ public class FragmentTest extends TestCase {
     public void testParser() throws Exception {
         Ts3Debugging.setEnabled(true);
 
-        byte[] data = new byte[1503];
+        byte[] data = new byte[5003];
         new Random(0x1234567).nextBytes(data);
 
         ClientPacketHeader header = new ClientPacketHeader();
@@ -40,6 +40,7 @@ public class FragmentTest extends TestCase {
                 new AbstractTeamspeakClientSocket.LocalCounterFull(65536, true);
 
         counter.setPacketId(65534); // Test wrapping around the generation at the same time :)
+        reassembly.setPacketId(65535);
 
         List<Packet> pieces = Fragments.split(largePacket);
         Ts3Debugging.debug("Created " + pieces.size() + " pieces (total=" + data.length + ").");
@@ -49,11 +50,16 @@ public class FragmentTest extends TestCase {
             piece.getHeader().setPacketId(packetId.getKey());
             piece.getHeader().setGeneration(packetId.getValue());
 
-            Packet out = reassembly.put(piece);
-            if (out != null)
-                assertEquals(text, ((PacketBody2Command)out.getBody()).getText());
+            reassembly.put(piece);
         }
 
+        Packet reassembled;
+        while (((reassembled = reassembly.next()) != null)) {
+            assertEquals(
+                    ((PacketBody2Command) largePacket.getBody()).getText(),
+                    ((PacketBody2Command) reassembled.getBody()).getText()
+            );
+        }
     }
 
 }

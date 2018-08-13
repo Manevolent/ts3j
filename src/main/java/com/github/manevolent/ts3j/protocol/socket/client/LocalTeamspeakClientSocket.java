@@ -141,8 +141,6 @@ public class LocalTeamspeakClientSocket
 
                 response.add(new CommandSingleParameter("connection_server2client_packetloss_total", Integer.toString(0)));
 
-                Ts3Debugging.debug(response.build());
-
                 try {
                     writePacket(new PacketBody2Command(getRole().getOut(), response));
                 } catch (Exception e) {

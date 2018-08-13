@@ -26,7 +26,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
     public void handlePacket(Packet packet) throws IOException, TimeoutException {
         switch (packet.getBody().getType()) {
             case COMMAND:
-                Ts3Debugging.debug(((PacketBody2Command) packet.getBody()).getText());
+                Ts3Debugging.debug("[COMMAND] " + ((PacketBody2Command) packet.getBody()).getText());
 
                 try {
                     handleCommand(MultiCommand.parse(
@@ -39,7 +39,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
 
                 break;
             case COMMAND_LOW:
-                Ts3Debugging.debug("[LOW] " + ((PacketBody2Command) packet.getBody()).getText());
+                Ts3Debugging.debug("[COMMAND] [LOW] " + ((PacketBody2Command) packet.getBody()).getText());
 
                 try {
                     handleCommand(MultiCommand.parse(

@@ -11,36 +11,58 @@ import java.util.stream.Collectors;
 
 public class PacketReassembly {
     private final Map<Integer, Packet> queue = new LinkedHashMap<>();
-    private boolean state = false;
+    private int currentPacketId = 0;
 
-    public Packet reassemble(Packet lastFragment) throws IOException {
+    public void setPacketId(int currentPacketId) {
+        this.currentPacketId = currentPacketId;
+    }
+
+    public boolean put(Packet packet) throws IOException {
+        queue.put(packet.getHeader().getPacketId(), packet);
+
+        return currentPacketId == packet.getHeader().getPacketId();
+    }
+
+    public Packet next() throws IOException {
         List<Packet> reassemblyList = new ArrayList<>();
 
         try {
             // Pull out all other packets in the queue before this one which would also be fragmented
             List<Integer> packetIds = new ArrayList<>();
 
-            for (int packetId = lastFragment.getHeader().getPacketId(); ; packetId--) {
-                if (packetId < 0) packetId = 65536 + packetId;
+            boolean state = false;
 
-                Packet olderPacket = queue.get(packetId);
+            for (int packetId = currentPacketId; ; packetId++) {
+                if (packetId >= 65536) packetId = 0;
 
-                if (olderPacket == null)
+                Packet packet = queue.get(packetId);
+
+                if (packet == null)
                     break; // Chain breaks here
-                else if (olderPacket.getHeader().getType() != lastFragment.getHeader().getType())
-                    continue; // skip???
                 else {
                     packetIds.add(packetId);
-                    reassemblyList.add(olderPacket);
+                    reassemblyList.add(packet);
 
-                    if (lastFragment.getHeader().getPacketId() != packetId &&
-                            olderPacket.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED))
-                        break;
+                    if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
+                        state = !state;
+
+                        if (!state) {
+                            currentPacketId += packetIds.size();
+                            break; // fragmentation stopped, we found the last packet
+                        } else
+                            continue; // keep collecting fragments
+                    } else if (!state) {
+                        currentPacketId ++;
+                        break; // don't reassemble this packet, it's not a fragment
+                    } else if (state) {
+                        // keep collecting fragments
+                        continue;
+                    }
                 }
             }
 
-            // Reverse the collection
-            Collections.reverse(reassemblyList);
+            if (state) return null; // cannot reassemble yet because we don't have all fragments
+            else if (reassemblyList.size() <= 0) return null; // cannot reassemble because we miss the first packet
 
             // Rebuild a master packet from the contents of all previous packet fragments
             int totalLength =
@@ -53,7 +75,7 @@ public class PacketReassembly {
 
             Packet firstPacket = reassemblyList.get(0);
             Packet reassembledPacket = new Packet(firstPacket.getRole());
-            reassembledPacket.setHeader(firstPacket.getHeader());
+            reassembledPacket.setHeader(firstPacket.getHeader().clone());
 
             ByteBuffer reassemblyBuffer = ByteBuffer.allocate(totalLength);
 
@@ -61,6 +83,8 @@ public class PacketReassembly {
 
             for (Packet old : reassemblyList)
                 old.writeBody(reassemblyBuffer);
+
+            reassemblyBuffer.position(0);
 
             if (firstPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
                 reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array()));
@@ -70,7 +94,7 @@ public class PacketReassembly {
             // Remove read packets
             packetIds.forEach(queue::remove);
 
-            return reassembledPacket;
+           return reassembledPacket;
         } catch (Exception ex) {
             throw new IOException("Problem reassembling " + reassemblyList.size() + " packet(s): [" +
                     String.join(",",
@@ -81,43 +105,8 @@ public class PacketReassembly {
         }
     }
 
-    public Packet put(Packet packet) throws IOException {
-        Packet reassembled;
-
-        if (packet.getHeader().getPacketFlag(HeaderFlag.FRAGMENTED)) {
-            boolean oldState = state;
-
-            state = !state;
-
-            if (!(packet.getBody() instanceof PacketBodyFragment))
-                throw new IllegalArgumentException("packet fragment object is not representative of a fragment");
-
-            queue.put(packet.getHeader().getPacketId(), packet);
-
-            if (oldState) {
-                reassembled = reassemble(packet);
-            } else {
-                reassembled = null;
-            }
-        } else {
-            if (state) {
-                queue.put(packet.getHeader().getPacketId(), packet);
-
-                reassembled = null;
-            } else {
-                reassembled = packet;
-            }
-        }
-
-        return reassembled;
-    }
-
-    public boolean isReassembling() {
-        return state;
-    }
-
     public void reset() {
-        state = false;
+        currentPacketId = 0;
         queue.clear();
     }
 }

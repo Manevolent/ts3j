@@ -141,8 +141,6 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             }
         } else if (packet.getBody() instanceof PacketBody2Command) {
-            Ts3Debugging.debug(((PacketBody2Command) packet.getBody()).getText());
-
             SingleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplifyOne();
 
             if (command.getName().equalsIgnoreCase("initivexpand2")) {
