@@ -17,18 +17,18 @@ import static org.junit.Assert.assertEquals;
 
 public class ServerConnectionTest  {
     public static void main(String[] args) throws Exception {
+
+        LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
+
+        Ts3Debugging.setEnabled(true);
+
+        LocalIdentity identity = LocalIdentity.load(
+                new BigInteger(Base64.getDecoder().decode("Tj6YXM3qyRv8n25L2pH+OEJnRUl4auQf8+znjYrOmWU="))
+        );
+
+        identity.improveSecurity(10);
         while (true) {
             try {
-                Ts3Debugging.setEnabled(true);
-
-                LocalIdentity identity = LocalIdentity.load(
-                        new BigInteger(Base64.getDecoder().decode("Tj6YXM3qyRv8n25L2pH+OEJnRUl4auQf8+znjYrOmWU="))
-                );
-
-                identity.improveSecurity(10);
-
-                LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
-
                 client.setIdentity(identity);
 
                 client.setNickname("Hello from Java");

@@ -24,6 +24,7 @@ import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
@@ -37,15 +38,7 @@ public class LocalTeamspeakClientSocket
         extends AbstractTeamspeakClientSocket
         implements CommandProcessor {
 
-    private final DatagramSocket socket;
-
-    {
-        try {
-            socket = new DatagramSocket();
-        } catch (SocketException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    private DatagramSocket socket;
 
     private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
 
@@ -53,6 +46,7 @@ public class LocalTeamspeakClientSocket
     private final ExecutorService commandExecutionService = Executors.newCachedThreadPool();
     private final Object commandSendLock = new Object();
 
+    private volatile InetSocketAddress remote;
 
     private Microphone microphone;
     private Thread microphoneThread;
@@ -161,42 +155,69 @@ public class LocalTeamspeakClientSocket
     protected NetworkPacket readNetworkPacket(int timeout) throws
             IOException,
             SocketTimeoutException {
+        DatagramSocket socket = this.socket;
+        InetSocketAddress remote = this.remote;
 
-        socket.setSoTimeout(timeout);
-        socket.receive(packet);
+        while (socket.isBound()) {
+            socket.setSoTimeout(timeout);
 
-        PacketHeader header;
+            try {
+                socket.receive(packet);
+            } catch (SocketException ex) {
+                if (socket.isClosed()) throw new EOFException();
+                else throw ex;
+            }
 
-        try {
-            header = getRole().getIn().getHeaderClass().newInstance();
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+            if (remote == null || getState() == ClientConnectionState.DISCONNECTED)
+                break;
+            else if (!packet.getAddress().equals(remote.getAddress()) || packet.getPort() != remote.getPort())
+                continue;
+
+            PacketHeader header;
+
+            try {
+                header = getRole().getIn().getHeaderClass().newInstance();
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+
+            ByteBuffer buffer = ByteBuffer
+                    .wrap(packet.getData(), packet.getOffset(), packet.getLength())
+                    .order(ByteOrder.BIG_ENDIAN);
+
+            header.read(buffer);
+
+            Ts3Debugging.debug("[NETWORK] READ" +
+                    " id=" + header.getPacketId() +
+                    " len=" + packet.getLength() +
+                    " from " + packet.getSocketAddress());
+
+            return new NetworkPacket(
+                    packet,
+                    header,
+                    buffer
+            );
         }
 
-        ByteBuffer buffer = ByteBuffer
-                .wrap(packet.getData(), packet.getOffset(), packet.getLength())
-                .order(ByteOrder.BIG_ENDIAN);
-
-        header.read(buffer);
-
-        Ts3Debugging.debug("[NETWORK] READ" +
-                " id=" + header.getPacketId() +
-                " len=" + packet.getLength() +
-                " from " + packet.getSocketAddress());
-
-        return new NetworkPacket(
-                packet,
-                header,
-                buffer
-        );
+        throw new IOException("disconnected");
     }
 
     @Override
     protected void writeNetworkPacket(NetworkPacket packet) throws IOException {
+        InetSocketAddress remote = this.remote;
+        ClientConnectionState state = this.getState();
+
+        if (state == ClientConnectionState.DISCONNECTED)
+            throw new IllegalStateException(state.name());
+        else if (remote == null)
+            throw new IOException(new NullPointerException("remote"));
+
         Ts3Debugging.debug("[NETWORK] WRITE id=" + packet.getHeader().getPacketId() + " len=" +
                 packet.getDatagram().getLength()
                 + " to " +
-                socket.getRemoteSocketAddress());
+                remote.toString());
+
+        packet.getDatagram().setSocketAddress(remote);
 
         socket.send(packet.getDatagram());
     }
@@ -227,6 +248,8 @@ public class LocalTeamspeakClientSocket
         }
 
         serverId = null;
+
+        remote = null;
     }
 
     /**
@@ -239,15 +262,22 @@ public class LocalTeamspeakClientSocket
     public void connect(InetSocketAddress remote, String password, long timeout)
             throws IOException, TimeoutException {
         try {
-            Ts3Debugging.debug("Connecting to " + remote + "...");
-
             ClientConnectionState connectionState = getState();
 
             if (connectionState != ClientConnectionState.DISCONNECTED)
                 throw new IllegalStateException(connectionState.name());
 
+            Ts3Debugging.debug("Connecting to " + remote + "...");
+
             setClientId(0);
 
+            if (remote.isUnresolved())
+                remote = new InetSocketAddress(remote.getAddress().getHostAddress(), remote.getPort());
+
+            if (socket != null) socket.close();
+            socket = new DatagramSocket();
+
+            this.remote = remote;
             serverId = null;
             awaitingCommands.clear();
             acceptingReturnCode = 0;
@@ -255,8 +285,6 @@ public class LocalTeamspeakClientSocket
             setOption("client.hostname", remote.getHostString());
 
             if (password != null) setOption("client.password", password);
-
-            socket.connect(remote);
 
             setState(ClientConnectionState.CONNECTING);
 
@@ -282,7 +310,7 @@ public class LocalTeamspeakClientSocket
 
     @Override
     protected boolean isReading() {
-        return socket.isConnected();
+        return super.isReading();
     }
 
     @Override
@@ -931,17 +959,23 @@ public class LocalTeamspeakClientSocket
             throws
             IOException, TimeoutException,
             ExecutionException, InterruptedException {
-        switch (getState()) {
-            case CONNECTING:
-            case RETRIEVING_DATA:
-                waitForState(ClientConnectionState.CONNECTED, 10000L);
-            case CONNECTED:
-                writePacket(new PacketBody2Command(
-                        ProtocolRole.CLIENT,
-                        new SingleCommand("clientdisconnect", ProtocolRole.CLIENT))
-                );
+        try {
+            switch (getState()) {
+                case CONNECTING:
+                case RETRIEVING_DATA:
+                    waitForState(ClientConnectionState.CONNECTED, 10000L);
+                case CONNECTED:
+                    writePacket(new PacketBody2Command(
+                                    ProtocolRole.CLIENT,
+                                    new SingleCommand("clientdisconnect", ProtocolRole.CLIENT))
+                    );
 
-                break;
+                    waitForState(ClientConnectionState.DISCONNECTED, 30000L);
+
+                    break;
+            }
+        } finally {
+            setState(ClientConnectionState.DISCONNECTED);
         }
     }
 

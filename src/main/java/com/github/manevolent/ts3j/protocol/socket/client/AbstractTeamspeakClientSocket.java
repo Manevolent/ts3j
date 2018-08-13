@@ -26,6 +26,7 @@ import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.SocketTimeoutException;
@@ -225,6 +226,8 @@ public abstract class AbstractTeamspeakClientSocket
         for (PacketKind kind : PacketKind.values()) {
             packetStatistics.put(kind, new PacketStatistics());
         }
+
+        setTransformation(new InitPacketTransformation());
     }
 
     public ClientConnectionState getState() {
@@ -762,7 +765,7 @@ public abstract class AbstractTeamspeakClientSocket
             }
         }
 
-        throw new IllegalStateException("no longer reading");
+        throw new EOFException();
     }
 
     /**
@@ -900,6 +903,8 @@ public abstract class AbstractTeamspeakClientSocket
             while (isReading()) {
                 try {
                     readQueue.put(readPacket());
+                } catch (EOFException e) {
+                    break;
                 } catch (Throwable e) {
                     if (e instanceof InterruptedException) {
                         Thread.yield();
@@ -912,7 +917,8 @@ public abstract class AbstractTeamspeakClientSocket
             }
 
             try {
-                setState(ClientConnectionState.DISCONNECTED);
+                if (getState() != ClientConnectionState.DISCONNECTED)
+                    setState(ClientConnectionState.DISCONNECTED);
             } catch (Throwable e1) {
                 exceptionHandler.accept(e1);
             }
