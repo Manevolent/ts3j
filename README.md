@@ -1,10 +1,7 @@
 # ts3j
 
-Discord:
-https://discord.gg/4q9jpCa
-
-Teamspeak:
-teamlixo.net (that's an SRV record; ts.teamlixo.net is the A record)
+Discord: https://discord.gg/4q9jpCa
+Teamspeak: teamlixo.net (that's an SRV record; ts.teamlixo.net is the A record)
 
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
