@@ -447,7 +447,7 @@ public abstract class AbstractTeamspeakClientSocket
 
         if (responsibleQueue != null) {
             responsibleQueue.put(
-                    counter.getKey(),
+                    networkPacket.getHeader().getPacketId(),
                     response = new PacketResponse(
                             networkPacket,
                             responsibleQueue,
