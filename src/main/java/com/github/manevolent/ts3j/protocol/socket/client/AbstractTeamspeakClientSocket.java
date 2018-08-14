@@ -447,10 +447,10 @@ public abstract class AbstractTeamspeakClientSocket
 
         if (responsibleQueue != null) {
             responsibleQueue.put(
-                    packet.getHeader().getPacketId(),
+                    counter.getKey(),
                     response = new PacketResponse(
                             networkPacket,
-                            sendQueue,
+                            responsibleQueue,
                             networkPacket.getHeader().getType().canResend() ? 30 : 0
                     )
             );
