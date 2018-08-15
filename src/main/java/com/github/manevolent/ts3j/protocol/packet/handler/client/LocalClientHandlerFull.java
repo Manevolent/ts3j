@@ -4,6 +4,7 @@ import com.github.manevolent.ts3j.command.CommandProcessException;
 import com.github.manevolent.ts3j.command.CommandProcessor;
 import com.github.manevolent.ts3j.command.MultiCommand;
 import com.github.manevolent.ts3j.protocol.Packet;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody3CommandLow;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
@@ -11,6 +12,7 @@ import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 public abstract class LocalClientHandlerFull extends LocalClientHandler {
     protected LocalClientHandlerFull(LocalTeamspeakClientSocket client) {
@@ -50,6 +52,10 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                     throw new IOException(e);
                 }
 
+                break;
+            case VOICE:
+                Consumer<PacketBody0Voice> handler = getClient().getVoiceHandler();
+                if (handler != null) handler.accept((PacketBody0Voice) packet.getBody());
                 break;
         }
     }

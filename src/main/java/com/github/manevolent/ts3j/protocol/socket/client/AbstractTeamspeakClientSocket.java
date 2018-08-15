@@ -69,6 +69,7 @@ public abstract class AbstractTeamspeakClientSocket
 
     private CommandProcessor commandProcessor;
 
+    private Consumer<PacketBody0Voice> voiceHandler;
     private Consumer<Throwable> exceptionHandler = Throwable::printStackTrace;
 
     private Identity identity = null;
@@ -875,6 +876,14 @@ public abstract class AbstractTeamspeakClientSocket
 
     public void setExceptionHandler(Consumer<Throwable> exceptionHandler) {
         this.exceptionHandler = exceptionHandler;
+    }
+
+    public Consumer<PacketBody0Voice> getVoiceHandler() {
+        return voiceHandler;
+    }
+
+    public void setVoiceHandler(Consumer<PacketBody0Voice> voiceHandler) {
+        this.voiceHandler = voiceHandler;
     }
 
     private class NetworkHandler implements Runnable {

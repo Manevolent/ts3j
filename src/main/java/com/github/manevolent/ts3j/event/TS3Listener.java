@@ -26,6 +26,8 @@ package com.github.manevolent.ts3j.event;
  * #L%
  */
 
+import com.github.manevolent.ts3j.audio.Microphone;
+
 public interface TS3Listener {
 
 	void onTextMessage(TextMessageEvent e);
@@ -67,4 +69,5 @@ public interface TS3Listener {
     void onDisconnected(DisconnectedEvent e);
 
     void onChannelSubscribed(ChannelSubscribedEvent e);
+
 }
