@@ -6,14 +6,6 @@ Teamspeak: teamlixo.net (that's an SRV record; ts.teamlixo.net is the A record)
 
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
-The aim of this project is to provide a full client, capable of performing all functions a full client can.  This project will be "headless" is not intended to be a bot or server itself; it only aims to be an API to interact with the client or server sockets.
-
-If you are familiar with the Java Teamspeak3 serverQuery API, you will hit the ground running with this API as I am using several of their objects for the query side of the application.  I will also bring in as many commands as I can, meaning with a little bit of elbow grease you can move from a serverQuery bot to a TS3J bot more easily than otherwise.  Reason being, my current audio bot used serverQuery.
-
-I recommend using tomp2p's opus-wrapper and encode 20ms slices of your PCM stream, in stereo, and provide the OPUS_MUSIC type through the Microphone class.  Ideally, you will encode packets on a separate thread, and place them into a Queue, where you will then dequeue them on the provide() method in Microphone.  This ensures the lowest possible jitter.
-
-TS3J is formatted and stubbed for server support, and no logic has been written.  I've discovered that, with the protocol reversed, it may be possible to make a server that doesn't adhere to the licensing restrictions.  While nobody can stop anyone from making a reverse-engineered server as well now, I won't be sharing any code for one.
-
 # Maven
 
 If you want the latest `-SNAPSHOT`:
@@ -32,7 +24,7 @@ If you want the latest `-SNAPSHOT`:
 	</dependency>
 ```
 
-# Usage
+# Connection & Basic Setup
 
 ```
 client = new LocalTeamspeakClientSocket();
@@ -50,8 +42,74 @@ client.connect(
    password,
    10000L
 );
+
+// Subscribe to all channels
+client.subscribeAll();
+
+// Get list of clients
+for (Client basicClient : client.listClients())
+	recognizeClient(client.getClientInfo(basicClient.getId()));
 ```
+
 
 Note that while `connect()` is processing, you'll receive channels registered and clients currently connected to the server.  It is important that you use the listener to collect these, and track their changes through the other listener event calls.
 
 You can interact with the server using the commands on the `client` object similarly to TS3Query.
+
+# Handling chat
+
+```
+// TS3Listener interface
+@Override
+public void onTextMessage(TextMessageEvent textMessageEvent) {
+	if (textMessageEvent.getInvokerId() == client.getClientId())
+    		return;
+
+	// Global chat example
+	client.sendServerMessage("Echo!");
+	
+	// PM to the sender
+	client.sendPrivateMessage(textMessageEvent.getInvokerId(), "Echo!");
+}
+```
+
+# Sending audio
+
+```
+// Microphone interface
+public void write(float[] buffer, int len) {
+	byte[] opusPacket = doOpusEncodingHere(buffer, len);
+
+	packetQueue.add(opusPacket);
+}
+
+@Override
+public boolean isReady() {
+	return true;
+}
+
+@Override
+public CodecType getCodec() {
+	return CodecType.OPUS_MUSIC;
+}
+
+@Override
+public byte[] provide() {
+	try {
+	    if (packetQueue.peek() == null)
+		return new byte[0]; // underflow
+
+	    OpusPacket packet = packetQueue.remove();
+
+	    if (packet == null)
+		return new byte[0]; // underflow
+
+	    return packet.getBytes();
+	} catch (NoSuchElementException ex) {
+	    return new byte[0]; // signals the decoder on the clients to stop
+	}
+}
+```
+# Receiving audio
+
+This is definitely possible, but it's a work in progress for now.  Once I have a need for this in my own bot (I can forsee there being an opportunity), I will be adding full support to TS3J.
