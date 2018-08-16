@@ -1040,6 +1040,8 @@ public abstract class AbstractTeamspeakClientSocket
          */
         int getCurrentGeneration();
 
+        int getCurrentPacketId();
+
         /**
          * Counts the given packet by its packet ID and stores it in history.
          *
@@ -1064,6 +1066,11 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         @Override
+        public int getCurrentPacketId() {
+            return 0;
+        }
+
+        @Override
         public boolean put(int packetId) {
             return true;
         }
@@ -1083,6 +1090,8 @@ public abstract class AbstractTeamspeakClientSocket
         private Pair<Integer, Integer>
                 bufferStart = new Pair<>(0,0), // position of the start of the buffer in the window
                 bufferEnd; // position of the end of the buffer in the window
+
+        private int latestPacketId = 0;
 
         /**
          * Constructs a new full counter
@@ -1145,11 +1154,18 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         @Override
+        public int getCurrentPacketId() {
+            return latestPacketId;
+        }
+
+        @Override
         public boolean put(int packetId) {
             // find if right of the start and within the start's bounds
             if (packetId >= bufferStart.getValue()
                     && packetId < bufferStart.getValue() + bufferSize
                     && packetId < generationSize) {
+                latestPacketId = Math.max(latestPacketId, packetId);
+
                 return putRelative(packetId - bufferStart.getValue(), bufferStart.getKey());
             }
 
@@ -1158,6 +1174,8 @@ public abstract class AbstractTeamspeakClientSocket
                     && packetId >= 0
                     && packetId > bufferEnd.getValue() - bufferSize
                     && packetId < generationSize) {
+                latestPacketId = Math.max(latestPacketId, packetId);
+
                 return putRelative(bufferSize - (bufferEnd.getValue() - packetId) - 1, bufferEnd.getKey());
             }
 
@@ -1198,9 +1216,9 @@ public abstract class AbstractTeamspeakClientSocket
 
                 int bufferEndGeneration;
                 int bufferEndPosition = (bufferStartPosition + bufferSize - 1) % generationSize;
-                if (bufferEndPosition < bufferStartPosition)
+                if (bufferEndPosition < bufferStartPosition) {
                     bufferEndGeneration = bufferStartGeneration + 1;
-                else
+                } else
                     bufferEndGeneration = bufferStartGeneration;
 
                 this.bufferStart = new Pair<>(bufferStartGeneration, bufferStartPosition);
@@ -1209,6 +1227,8 @@ public abstract class AbstractTeamspeakClientSocket
                 throw new IllegalStateException();
 
             // if we had to adjust the buffer size, recursively retry put
+            this.latestPacketId = packetId;
+
             return put(packetId);
         }
 

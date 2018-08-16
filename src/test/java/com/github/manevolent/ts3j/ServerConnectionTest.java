@@ -6,12 +6,14 @@ import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.util.Base64;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
 
@@ -51,7 +53,7 @@ public class ServerConnectionTest  {
 
             @Override
             public void onClientJoin(ClientJoinEvent e) {
-
+                System.err.println(e.get("cid"));
             }
 
             @Override
@@ -150,13 +152,12 @@ public class ServerConnectionTest  {
         client.subscribeAll();
 
         try {
-
-            while (client.isConnected()) {
-                for (Client c : client.listClients()) {
-                    client.getClientInfo(c.getId());
-                }
-            }
-
+            client.setVoiceHandler(packetBody0Voice -> {
+                System.err.println("clientId=" + packetBody0Voice.getClientId());
+                System.err.println("packetId=" + packetBody0Voice.getPacketId());
+                System.err.println("type=" + packetBody0Voice.getCodecType());
+                System.err.println("len=" + packetBody0Voice.getCodecData().length);
+            });
         } catch (Exception ex) {
             ex.printStackTrace();
         }
