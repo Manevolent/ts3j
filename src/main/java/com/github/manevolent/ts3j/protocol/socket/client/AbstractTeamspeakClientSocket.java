@@ -1100,6 +1100,14 @@ public abstract class AbstractTeamspeakClientSocket
             this.bufferEnd = new Pair<>(0, windowSize - 1);
         }
 
+        public Pair<Integer, Integer> getBufferStart() {
+            return bufferStart;
+        }
+
+        public Pair<Integer, Integer> getBufferEnd() {
+            return bufferEnd;
+        }
+
         @Override
         public int getGeneration(int packetId) {
             packetId %= generationSize;
