@@ -70,6 +70,8 @@ public abstract class AbstractTeamspeakClientSocket
     private CommandProcessor commandProcessor;
 
     private Consumer<PacketBody0Voice> voiceHandler;
+    private Consumer<PacketBody1VoiceWhisper> whisperHandler;
+
     private Consumer<Throwable> exceptionHandler = Throwable::printStackTrace;
 
     private Identity identity = null;
@@ -884,6 +886,14 @@ public abstract class AbstractTeamspeakClientSocket
 
     public void setVoiceHandler(Consumer<PacketBody0Voice> voiceHandler) {
         this.voiceHandler = voiceHandler;
+    }
+
+    public Consumer<PacketBody1VoiceWhisper> getWhisperHandler() {
+        return whisperHandler;
+    }
+
+    public void setWhisperHandler(Consumer<PacketBody1VoiceWhisper> whisperHandler) {
+        this.whisperHandler = whisperHandler;
     }
 
     private class NetworkHandler implements Runnable {

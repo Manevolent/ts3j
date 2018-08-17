@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.command.CommandProcessor;
 import com.github.manevolent.ts3j.command.MultiCommand;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
+import com.github.manevolent.ts3j.protocol.packet.PacketBody1VoiceWhisper;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody3CommandLow;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
@@ -56,6 +57,10 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
             case VOICE:
                 Consumer<PacketBody0Voice> handler = getClient().getVoiceHandler();
                 if (handler != null) handler.accept((PacketBody0Voice) packet.getBody());
+                break;
+            case VOICE_WHISPER:
+                Consumer<PacketBody1VoiceWhisper> whisperConsumer = getClient().getWhisperHandler();
+                if (whisperConsumer != null) whisperConsumer.accept((PacketBody1VoiceWhisper) packet.getBody());
                 break;
         }
     }

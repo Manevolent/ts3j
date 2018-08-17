@@ -31,7 +31,7 @@ out/
 .userlibraries
 
 # Maven
-target/
+targetId/
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
