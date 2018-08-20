@@ -112,4 +112,4 @@ public byte[] provide() {
 ```
 # Receiving audio
 
-This is definitely possible, but it's a work in progress for now.  Once I have a need for this in my own bot (I can forsee there being an opportunity), I will be adding full support to TS3J.
+Refer to the `setVoiceHandler` and `setWhisperHandler` methods to supply a Consumer object to receive Voice and Whisper packets.  You will need to decode the packets yourself, and insert packet-loss-correction as needed.
