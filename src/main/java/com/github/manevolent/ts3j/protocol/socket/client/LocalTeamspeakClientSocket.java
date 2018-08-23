@@ -15,6 +15,7 @@ import com.github.manevolent.ts3j.identity.Uid;
 import com.github.manevolent.ts3j.protocol.NetworkPacket;
 import com.github.manevolent.ts3j.protocol.PacketKind;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.SocketRole;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
@@ -60,7 +61,7 @@ public class LocalTeamspeakClientSocket
     private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
-        super();
+        super(SocketRole.CLIENT);
 
         namedProcessors.put("initserver", new InitServerHandler());
 
