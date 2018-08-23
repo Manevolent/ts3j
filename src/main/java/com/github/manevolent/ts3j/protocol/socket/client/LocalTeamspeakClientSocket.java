@@ -21,7 +21,6 @@ import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -31,7 +30,6 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class LocalTeamspeakClientSocket
