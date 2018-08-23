@@ -902,6 +902,26 @@ public class LocalTeamspeakClientSocket
         return executeCommand(command, x -> new Client(x.toMap())).get();
     }
 
+    public void serverGroupAddClient(int groupId, int clientDatabaseId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("servergroupaddclient", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
+    }
+
+    public void serverGroupRemoveClient(int groupId, int clientDatabaseId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("servergroupdelclient", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
+    }
+
     /**
      * Moves one or more clients specified with clid to the channel with ID cid. If
      the target channel has a password, it needs to be specified with cpw. If the
