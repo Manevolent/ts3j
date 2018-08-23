@@ -37,10 +37,7 @@ public class ServerConnectionTest  {
         client.setOption("client.hwid", "JAVAJAVAJAVA");
 
         client.connect(
-                new InetSocketAddress(
-                        "ts.teamlixo.net",
-                        9987
-                ),
+                "teamlixo.net",
                 null,
                 10000L
         );

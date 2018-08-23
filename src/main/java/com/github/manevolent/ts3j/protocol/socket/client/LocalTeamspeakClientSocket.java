@@ -12,10 +12,7 @@ import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.identity.Uid;
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
-import com.github.manevolent.ts3j.protocol.PacketKind;
-import com.github.manevolent.ts3j.protocol.ProtocolRole;
-import com.github.manevolent.ts3j.protocol.SocketRole;
+import com.github.manevolent.ts3j.protocol.*;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
@@ -24,6 +21,7 @@ import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -33,6 +31,7 @@ import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class LocalTeamspeakClientSocket
@@ -255,12 +254,35 @@ public class LocalTeamspeakClientSocket
         remote = null;
     }
 
+
+    /**
+     * Initiates a connection to a server
+     * @param hostname Hostname to contact
+     * @param password server password (may be null)
+     * @param timeout timeout, in milliseconds, to complete a connection.
+     */
+    public void connect(String hostname, String password, long timeout) throws
+            UnknownHostException,
+            IOException,
+            TimeoutException {
+
+        InetSocketAddress address;
+
+        try {
+            // Attempt TS3DNS
+            address = TS3DNS.lookup(hostname).stream().findFirst().orElseThrow(() -> new UnknownHostException(hostname));
+        } catch (UnknownHostException e) {
+            address = new InetSocketAddress(hostname, 9987);
+        }
+
+        connect(address, password, timeout);
+    }
+
     /**
      * Initiates a connection to a server
      * @param remote remote sever to contact
-     * @param password server password
+     * @param password server password (may be null)
      * @param timeout timeout, in milliseconds, to complete a connection.
-     * @throws IOException
      */
     public void connect(InetSocketAddress remote, String password, long timeout)
             throws IOException, TimeoutException {
@@ -287,7 +309,7 @@ public class LocalTeamspeakClientSocket
 
             setOption("client.hostname", remote.getHostString());
 
-            if (password != null) setOption("client.password", password);
+            if (password != null && password.length() > 0) setOption("client.password", password);
 
             setState(ClientConnectionState.CONNECTING);
 
@@ -298,6 +320,7 @@ public class LocalTeamspeakClientSocket
                     0.01F,
                     new MicrophoneTask()
             );
+
             microphoneThread.setDaemon(true);
             microphoneThread.start();
         } catch (TimeoutException e) {
