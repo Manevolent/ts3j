@@ -260,7 +260,6 @@ public class LocalTeamspeakClientSocket
      * @param timeout timeout, in milliseconds, to complete a connection.
      */
     public void connect(String hostname, String password, long timeout) throws
-            UnknownHostException,
             IOException,
             TimeoutException {
 
@@ -649,6 +648,14 @@ public class LocalTeamspeakClientSocket
         }
 
         super.setNickname(nickname);
+    }
+
+    public void setHWID(String hwid) {
+        setOption("client.hwid", hwid);
+    }
+
+    public String getHWID() {
+        return getOption("client.hwid", String.class);
     }
 
     /**

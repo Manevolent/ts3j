@@ -205,8 +205,6 @@ public abstract class AbstractTeamspeakClientSocket
     }
 
     protected void onDisconnect() {
-        clientOptions.clear();
-
         clientId = -1;
 
         readQueue.clear();

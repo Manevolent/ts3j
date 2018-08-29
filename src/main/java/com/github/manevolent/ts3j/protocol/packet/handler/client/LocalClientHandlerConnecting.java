@@ -1,9 +1,11 @@
 package com.github.manevolent.ts3j.protocol.packet.handler.client;
 
+import com.github.manevolent.ts3j.command.Command;
 import com.github.manevolent.ts3j.command.SingleCommand;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.TS3DNS;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody8Init1;
@@ -188,49 +190,48 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                 alphaBytes = null;
 
-                getClient().writePacket(new PacketBody2Command(
+                Command clientinit = new SingleCommand(
+                        "clientinit",
                         ProtocolRole.CLIENT,
-                        new SingleCommand(
-                                "clientinit",
-                                ProtocolRole.CLIENT,
-                                new CommandSingleParameter("client_nickname", getClient().getNickname()),
-                                new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
-                                new CommandSingleParameter("client_platform", "Windows"),
-                                new CommandSingleParameter(
-                                        "client_version_sign",
-                                                "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
-                                ),
-                                new CommandSingleParameter("client_input_hardware", "1"),
-                                new CommandSingleParameter("client_output_hardware", "1"),
-                                new CommandSingleParameter("client_default_channel",
-                                        getClient().getOption("client.default_channel", String.class)
-                                ),
-                                new CommandSingleParameter("client_default_channel_password",
-                                        getClient().getOption("client.default_channel_password", String.class)
-                                ),
-                                new CommandSingleParameter(
-                                        "client_server_password",
-                                        getClient().getOption("client.server_password", String.class)
-                                ),
-                                new CommandSingleParameter("client_nickname_phonetic",
-                                        getClient().getOption("client.nickname_phonetic", String.class)
-                                ),
-                                new CommandSingleParameter("client_meta_data", ""),
-                                new CommandSingleParameter("client_default_token",
-                                        getClient().getOption("client.default_token", String.class)
-                                ),
-                                new CommandSingleParameter(
-                                        "client_key_offset",
-                                        Long.toString(getClient().getIdentity().getKeyOffset())
-                                ),
-                                new CommandSingleParameter(
-                                        "hwid",
-                                        getClient().getOption("client.hwid", String.class) != null ?
-                                                getClient().getOption("client.hwid", String.class) :
-                                                "+LyYqbDqOvEEpN5pdAbF8/v5kZ0="
-                                )
+                        new CommandSingleParameter("client_nickname", getClient().getNickname()),
+                        new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
+                        new CommandSingleParameter("client_platform", "Windows"),
+                        new CommandSingleParameter(
+                                "client_version_sign",
+                                "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
+                        ),
+                        new CommandSingleParameter("client_input_hardware", "1"),
+                        new CommandSingleParameter("client_output_hardware", "1"),
+                        new CommandSingleParameter("client_default_channel",
+                                getClient().getOption("client.default_channel", String.class)
+                        ),
+                        new CommandSingleParameter("client_default_channel_password",
+                                getClient().getOption("client.default_channel_password", String.class)
+                        ),
+                        new CommandSingleParameter("client_server_password",
+                                getClient().getOption("client.server_password", String.class)
+                        ),
+                        new CommandSingleParameter("client_nickname_phonetic",
+                                getClient().getOption("client.nickname_phonetic", String.class)
+                        ),
+                        new CommandSingleParameter("client_meta_data", ""),
+                        new CommandSingleParameter("client_default_token",
+                                getClient().getOption("client.default_token", String.class)
+                        ),
+                        new CommandSingleParameter("client_key_offset",
+                                Long.toString(getClient().getIdentity().getKeyOffset())
+                        ),
+                        new CommandSingleParameter(
+                                "hwid",
+                                getClient().getOption("client.hwid", String.class) != null ?
+                                        getClient().getOption("client.hwid", String.class) :
+                                        "+LyYqbDqOvEEpN5pdAbF8/v5kZ0="
                         )
-                ));
+                );
+
+                Ts3Debugging.debug(clientinit.build());
+
+                getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, clientinit));
 
                 getClient().setCommandProcessor(getClient());
                 getClient().setState(ClientConnectionState.RETRIEVING_DATA);
