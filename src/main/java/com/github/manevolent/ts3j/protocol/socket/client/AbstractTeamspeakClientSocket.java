@@ -107,8 +107,8 @@ public abstract class AbstractTeamspeakClientSocket
 
     private boolean reading = false;
 
-    protected AbstractTeamspeakClientSocket() {
-        super(SocketRole.CLIENT);
+    protected AbstractTeamspeakClientSocket(SocketRole role) {
+        super(role);
 
         // Initialize reassembly queue
         for (PacketBodyType bodyType : PacketBodyType.values())
@@ -205,8 +205,6 @@ public abstract class AbstractTeamspeakClientSocket
     }
 
     protected void onDisconnect() {
-        clientOptions.clear();
-
         clientId = -1;
 
         readQueue.clear();

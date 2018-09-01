@@ -12,9 +12,7 @@ import com.github.manevolent.ts3j.command.response.CommandResponse;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.identity.Uid;
-import com.github.manevolent.ts3j.protocol.NetworkPacket;
-import com.github.manevolent.ts3j.protocol.PacketKind;
-import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.*;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
@@ -60,7 +58,7 @@ public class LocalTeamspeakClientSocket
     private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
-        super();
+        super(SocketRole.CLIENT);
 
         namedProcessors.put("initserver", new InitServerHandler());
 
@@ -254,12 +252,34 @@ public class LocalTeamspeakClientSocket
         remote = null;
     }
 
+
+    /**
+     * Initiates a connection to a server
+     * @param hostname Hostname to contact
+     * @param password server password (may be null)
+     * @param timeout timeout, in milliseconds, to complete a connection.
+     */
+    public void connect(String hostname, String password, long timeout) throws
+            IOException,
+            TimeoutException {
+
+        InetSocketAddress address;
+
+        try {
+            // Attempt TS3DNS
+            address = TS3DNS.lookup(hostname).stream().findFirst().orElseThrow(() -> new UnknownHostException(hostname));
+        } catch (UnknownHostException e) {
+            address = new InetSocketAddress(hostname, 9987);
+        }
+
+        connect(address, password, timeout);
+    }
+
     /**
      * Initiates a connection to a server
      * @param remote remote sever to contact
-     * @param password server password
+     * @param password server password (may be null)
      * @param timeout timeout, in milliseconds, to complete a connection.
-     * @throws IOException
      */
     public void connect(InetSocketAddress remote, String password, long timeout)
             throws IOException, TimeoutException {
@@ -286,7 +306,7 @@ public class LocalTeamspeakClientSocket
 
             setOption("client.hostname", remote.getHostString());
 
-            if (password != null) setOption("client.password", password);
+            if (password != null && password.length() > 0) setOption("client.password", password);
 
             setState(ClientConnectionState.CONNECTING);
 
@@ -297,6 +317,7 @@ public class LocalTeamspeakClientSocket
                     0.01F,
                     new MicrophoneTask()
             );
+
             microphoneThread.setDaemon(true);
             microphoneThread.start();
         } catch (TimeoutException e) {
@@ -629,6 +650,14 @@ public class LocalTeamspeakClientSocket
         super.setNickname(nickname);
     }
 
+    public void setHWID(String hwid) {
+        setOption("client.hwid", hwid);
+    }
+
+    public String getHWID() {
+        return getOption("client.hwid", String.class);
+    }
+
     /**
      * Commands
      */
@@ -876,6 +905,26 @@ public class LocalTeamspeakClientSocket
         Command command = new SingleCommand("clientlist", ProtocolRole.CLIENT);
 
         return executeCommand(command, x -> new Client(x.toMap())).get();
+    }
+
+    public void serverGroupAddClient(int groupId, int clientDatabaseId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("servergroupaddclient", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
+    }
+
+    public void serverGroupRemoveClient(int groupId, int clientDatabaseId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        Command command = new SingleCommand("servergroupdelclient", ProtocolRole.CLIENT);
+
+        command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
     }
 
     /**

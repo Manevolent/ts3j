@@ -2,8 +2,6 @@
 
 Discord: https://discord.gg/4q9jpCa
 
-Teamspeak: teamlixo.net (that's an SRV record; ts.teamlixo.net is the A record)
-
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
 # Maven
@@ -112,4 +110,6 @@ public byte[] provide() {
 ```
 # Receiving audio
 
-This is definitely possible, but it's a work in progress for now.  Once I have a need for this in my own bot (I can forsee there being an opportunity), I will be adding full support to TS3J.
+Refer to the `setVoiceHandler` and `setWhisperHandler` methods to supply a Consumer object to receive Voice and Whisper packets.  You will need to decode the packets yourself, and insert packet-loss-correction as needed.
+
+Note that the first 5 packets starting a voice session are marked with the COMPRESSED flag.  The final voice packet, intended to singal to close your decoder and flush samples, is always empty (0-length byte array).

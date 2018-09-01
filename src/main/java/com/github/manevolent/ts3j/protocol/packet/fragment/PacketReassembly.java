@@ -40,7 +40,7 @@ public class PacketReassembly {
             temporaryCounter.setPacketId(currentPacketId.getKey());
             temporaryCounter.setGeneration(currentPacketId.getValue());
 
-            while (true) {
+            while (queue.size() > 0) {
                 Pair<Integer, Integer> thisPacketId = temporaryCounter.current();
                 Packet packet = queue.get(thisPacketId.getKey());
 
