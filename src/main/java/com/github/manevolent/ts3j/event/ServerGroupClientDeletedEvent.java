@@ -48,6 +48,6 @@ public class ServerGroupClientDeletedEvent extends BaseEvent {
 
 	@Override
 	public void fire(TS3Listener listener) {
-		listener.onServerGroupClientRemove(this);
+		listener.onServerGroupClientDeleted(this);
 	}
 }

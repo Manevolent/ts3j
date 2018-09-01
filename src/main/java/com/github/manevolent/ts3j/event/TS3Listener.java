@@ -49,7 +49,7 @@ public interface TS3Listener {
     default void onChannelSubscribed(ChannelSubscribedEvent e) {}
     default void onChannelUnsubscribed(ChannelUnsubscribedEvent e) {}
     default void onServerGroupClientAdded(ServerGroupClientAddedEvent e) {}
-    default void onServerGroupClientRemove(ServerGroupClientDeletedEvent e) {}
+    default void onServerGroupClientDeleted(ServerGroupClientDeletedEvent e) {}
     default void onClientPoke(ClientPokeEvent e) {}
     default void onClientComposing(ClientChatComposingEvent e) {}
 }
