@@ -26,48 +26,30 @@ package com.github.manevolent.ts3j.event;
  * #L%
  */
 
-import com.github.manevolent.ts3j.audio.Microphone;
-
 public interface TS3Listener {
-
-	void onTextMessage(TextMessageEvent e);
-
-	void onClientJoin(ClientJoinEvent e);
-
-	void onClientLeave(ClientLeaveEvent e);
-
-	void onServerEdit(ServerEditedEvent e);
-
-	void onChannelEdit(ChannelEditedEvent e);
-
-	void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e);
-
-	void onClientMoved(ClientMovedEvent e);
-
-	void onChannelCreate(ChannelCreateEvent e);
-
-	void onChannelDeleted(ChannelDeletedEvent e);
-
-	void onChannelMoved(ChannelMovedEvent e);
-
-	void onChannelPasswordChanged(ChannelPasswordChangedEvent e);
-
-    void onChannelList(ChannelListEvent e);
-
-	void onPrivilegeKeyUsed(PrivilegeKeyUsedEvent e);
-
-	void onChannelGroupList(ChannelGroupListEvent e);
-
-	void onServerGroupList(ServerGroupListEvent e);
-
-	void onClientNeededPermissions(ClientNeededPermissionsEvent e);
-
-    void onClientChannelGroupChanged(ClientChannelGroupChangedEvent e);
-
-    void onClientChanged(ClientUpdatedEvent e);
-
-    void onDisconnected(DisconnectedEvent e);
-
-    void onChannelSubscribed(ChannelSubscribedEvent e);
-
+	default void onTextMessage(TextMessageEvent e) {}
+    default void onClientJoin(ClientJoinEvent e) {}
+    default void onClientLeave(ClientLeaveEvent e) {}
+    default void onServerEdit(ServerEditedEvent e) {}
+    default void onChannelEdit(ChannelEditedEvent e) {}
+	default void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e) {}
+    default void onClientMoved(ClientMovedEvent e) {}
+    default void onChannelCreate(ChannelCreateEvent e) {}
+    default void onChannelDeleted(ChannelDeletedEvent e) {}
+    default void onChannelMoved(ChannelMovedEvent e) {}
+    default void onChannelPasswordChanged(ChannelPasswordChangedEvent e) {}
+    default void onChannelList(ChannelListEvent e) {}
+    default void onPrivilegeKeyUsed(PrivilegeKeyUsedEvent e) {}
+    default void onChannelGroupList(ChannelGroupListEvent e) {}
+    default void onServerGroupList(ServerGroupListEvent e) {}
+    default void onClientNeededPermissions(ClientNeededPermissionsEvent e) {}
+    default void onClientChannelGroupChanged(ClientChannelGroupChangedEvent e) {}
+    default void onClientChanged(ClientUpdatedEvent e) {}
+    default void onDisconnected(DisconnectedEvent e) {}
+    default void onChannelSubscribed(ChannelSubscribedEvent e) {}
+    default void onChannelUnsubscribed(ChannelUnsubscribedEvent e) {}
+    default void onServerGroupClientAdded(ServerGroupClientAddedEvent e) {}
+    default void onServerGroupClientRemove(ServerGroupClientDeletedEvent e) {}
+    default void onClientPoke(ClientPokeEvent e) {}
+    default void onClientComposing(ClientChatComposingEvent e) {}
 }

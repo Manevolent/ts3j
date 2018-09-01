@@ -69,6 +69,16 @@ public interface TS3Event {
 				return new ClientUpdatedEvent(command.toMap());
             case "notifychannelsubscribed": // CLIENT
                 return new ChannelSubscribedEvent(command.toMap());
+            case "notifychannelunsubscribed": // CLIENT
+                return new ChannelUnsubscribedEvent(command.toMap());
+            case "notifyservergroupclientadded": // CLIENT
+                return new ServerGroupClientAddedEvent(command.toMap());
+            case "notifyservergroupclientdeleted": // CLIENT
+                return new ServerGroupClientDeletedEvent(command.toMap());
+            case "notifyclientpoke": // CLIENT
+                return new ClientPokeEvent(command.toMap());
+            case "notifyclientchatcomposing": // CLIENT
+                return new ClientChatComposingEvent(command.toMap());
 			default:
 				throw new IllegalArgumentException("unknown event: " + command.getName());
 		}
