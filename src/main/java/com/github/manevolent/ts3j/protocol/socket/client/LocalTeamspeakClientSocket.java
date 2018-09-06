@@ -41,7 +41,7 @@ public class LocalTeamspeakClientSocket
     private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
 
     private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
-    private final ExecutorService commandExecutionService = Executors.newSingleThreadExecutor();
+    private ExecutorService commandExecutionService = Executors.newSingleThreadExecutor();
     private final Object commandSendLock = new Object();
 
     private volatile InetSocketAddress remote;
@@ -139,6 +139,26 @@ public class LocalTeamspeakClientSocket
                 }
             }
         });
+    }
+
+    public void setCommandExecutorService(ExecutorService executorService) {
+        this.commandExecutionService = executorService;
+    }
+
+    /**
+     * Enables or disables event callback multi-threading.  This is dangerous.  If this is enabled, events can be
+     * processed out-of-order.  It is suggested you use your own threading system for particular events you feel safe
+     * parallelling, such as chat messages.
+     *
+     * This is not enabled by default.
+     *
+     * @param enabled Event simultaneous (parallel) processing enabled
+     */
+    public void setEventMultiThreading(boolean enabled) {
+        if (enabled)
+            setCommandExecutorService(Executors.newCachedThreadPool());
+        else
+            setCommandExecutorService(Executors.newSingleThreadExecutor());
     }
 
     public void addListener(TS3Listener listener) {
