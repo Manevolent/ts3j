@@ -41,7 +41,7 @@ public class LocalTeamspeakClientSocket
     private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
 
     private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
-    private final ExecutorService commandExecutionService = Executors.newCachedThreadPool();
+    private final ExecutorService commandExecutionService = Executors.newSingleThreadExecutor();
     private final Object commandSendLock = new Object();
 
     private volatile InetSocketAddress remote;
