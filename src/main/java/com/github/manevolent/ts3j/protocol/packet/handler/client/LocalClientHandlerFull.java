@@ -42,7 +42,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
 
                 break;
             case COMMAND_LOW:
-                Ts3Debugging.debug("[COMMAND] [LOW] " + ((PacketBody2Command) packet.getBody()).getText());
+                Ts3Debugging.debug("[COMMAND] [LOW] " + ((PacketBody3CommandLow) packet.getBody()).getText());
 
                 try {
                     handleCommand(MultiCommand.parse(
