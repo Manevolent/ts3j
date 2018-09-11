@@ -527,9 +527,11 @@ public abstract class AbstractTeamspeakClientSocket
             Ts3Debugging.debug("[PROTOCOL] DECRYPT " + networkPacket.getHeader().getType().name()
                     + " generation=" + networkPacket.getHeader().getGeneration());
 
+            PacketTransformation transformation = getTransformation();
+
             try {
                 packetBuffer = ByteBuffer.wrap(
-                        getTransformation().decrypt(
+                        transformation.decrypt(
                                 networkPacket.getHeader(),
                                 packetBuffer,
                                 networkPacket.getDatagram().getLength() -
@@ -537,7 +539,15 @@ public abstract class AbstractTeamspeakClientSocket
                         )
                 ).order(ByteOrder.BIG_ENDIAN);
             } catch (InvalidCipherTextException e) {
-                throw new IOException("failed to decrypt " + networkPacket.getHeader().getType().name(), e);
+                throw new IOException(
+                        "failed to decrypt " + networkPacket.getHeader().getType().name()
+                                + " (" +
+                                "transformation=" + transformation.getClass() +
+                                ", state=" + getState() +
+                                ", id=" + packet.getHeader().getPacketId() +
+                                ", generation=" + networkPacket.getHeader().getGeneration(),
+                        e
+                );
             }
         }
 
@@ -549,7 +559,8 @@ public abstract class AbstractTeamspeakClientSocket
         } else {
             Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
 
-            if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) && packet.getHeader().getType().isCompressible())
+            if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) &&
+                    packet.getHeader().getType().isCompressible())
                 packet.setBody(new PacketBodyCompressed(networkPacket.getHeader().getType(), getRole().getIn()));
         }
 
