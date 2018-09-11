@@ -18,6 +18,7 @@ import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
+import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
@@ -328,6 +329,7 @@ public class LocalTeamspeakClientSocket
 
             if (password != null && password.length() > 0) setOption("client.password", password);
 
+            setTransformation(new InitPacketTransformation());
             setState(ClientConnectionState.CONNECTING);
 
             waitForState(ClientConnectionState.CONNECTED, timeout);

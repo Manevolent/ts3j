@@ -227,8 +227,6 @@ public abstract class AbstractTeamspeakClientSocket
         for (PacketKind kind : PacketKind.values()) {
             packetStatistics.put(kind, new PacketStatistics());
         }
-
-        setTransformation(new InitPacketTransformation());
     }
 
     public ClientConnectionState getState() {
