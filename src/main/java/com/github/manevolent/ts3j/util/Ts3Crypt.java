@@ -5,6 +5,7 @@ import Punisher.NaCl.Internal.Ed25519Ref10.GroupElementP3;
 import Punisher.NaCl.Internal.Ed25519Ref10.GroupOperations;
 import Punisher.NaCl.Internal.Ed25519Ref10.ScalarOperations;
 import Punisher.NaCl.Internal.Sha512;
+import com.github.manevolent.ts3j.api.Message;
 import com.github.manevolent.ts3j.identity.*;
 import com.github.manevolent.ts3j.license.License;
 import com.github.manevolent.ts3j.util.Pair;
@@ -24,11 +25,22 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.*;
+import java.util.Base64;
 import java.util.List;
 
 public final class Ts3Crypt {
     static {
         Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+    }
+
+    public static byte[] hash128(byte[] data, int offs, int len) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA1");
+            digest.update(data, offs, len);
+            return digest.digest();
+        } catch (GeneralSecurityException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public static byte[] hash128(byte[] data) {
@@ -53,6 +65,52 @@ public final class Ts3Crypt {
         } catch (GeneralSecurityException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    public static Ts3Crypt.SecureChannelParameters cryptoInit(byte[] alpha, byte[] beta, byte[] omega,
+                                                              LocalIdentity identity)
+            throws IOException {
+        if (beta.length != 10 && beta.length != 54)
+            throw new IOException("Invalid beta size: " + beta.length + " != (10,54)");
+
+        // getSharedSecret
+        byte[] sharedKey = getSharedSecret(omega, identity);
+
+        // Splamy's setSharedSecret
+        byte[] ivStruct = new byte[10 + beta.length];
+
+        //XorBinary(sharedKey, alpha, alpha.Length, ivStruct);
+        xor(sharedKey, 0, alpha, 0, alpha.length, ivStruct, 0);
+
+
+        //XorBinary(sharedKey.Slice(10), beta, beta.Length, ivStruct.AsSpan(10));
+        xor(sharedKey, 10, beta, 0, beta.length, ivStruct, 10);
+
+
+        byte[] buffer2 = hash128(ivStruct, 0, ivStruct.length);
+        byte[] fakeSignature = new byte[8];
+        System.arraycopy(buffer2, 0, fakeSignature, 0, 8);
+
+        return new SecureChannelParameters(fakeSignature, ivStruct);
+    }
+
+    public static byte[] getSharedSecret(byte[] omega, LocalIdentity identity) {
+        ECPoint publicKeyPoint = Ts3Crypt.decodePublicKey(omega);
+        ECPoint p = publicKeyPoint.multiply(identity.getPrivateKey()).normalize();
+
+        byte[] keyArr = p.getAffineXCoord().toBigInteger().toByteArray();
+        byte[] sharedSecret;
+        if (keyArr.length == 32)
+            sharedSecret = Ts3Crypt.hash128(keyArr);
+        else if (keyArr.length > 32)
+            sharedSecret = Ts3Crypt.hash128(keyArr, keyArr.length - 32, 32);
+        else {
+            byte[] keyArrExt = new byte[32];
+            System.arraycopy(keyArr, 0, keyArrExt, 32 - keyArr.length, keyArr.length);
+            sharedSecret = Ts3Crypt.hash128(keyArrExt);
+        }
+
+        return sharedSecret;
     }
 
     public static Ts3Crypt.SecureChannelParameters cryptoInit2(byte[] license, byte[] alpha,

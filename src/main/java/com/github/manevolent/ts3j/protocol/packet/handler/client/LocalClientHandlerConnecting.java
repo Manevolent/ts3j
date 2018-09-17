@@ -17,6 +17,7 @@ import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Base64;
 import java.util.Random;
@@ -58,13 +59,18 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         if (packet.getBody() instanceof PacketBody8Init1) {
             PacketBody8Init1 init1 = (PacketBody8Init1) packet.getBody();
 
+            Ts3Debugging.debug("Handle Init1 step " + init1.getStep().getNumber());
+
             switch (init1.getStep().getNumber()) {
                 case 1:
                     PacketBody8Init1.Step1 serverReplyStep1 = (PacketBody8Init1.Step1)init1.getStep();
+
                     // Check nonce.  It's received backwards, so walk backwards over the array received
                     for (int i = 0; i < 4; i ++) {
-                        if (randomBytes[3 - i] != serverReplyStep1.getA0reversed()[i])
-                            throw new IllegalArgumentException("invalid server nonce");
+                        if (randomBytes[3 - i] != serverReplyStep1.getA0reversed()[i]) {
+                            Ts3Debugging.debug("[WARNING] random byte mismatch!");
+                            break;
+                        }
                     }
 
                     // Build response
@@ -138,6 +144,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                     sendInit1(response4);
                     break;
+                case 127:
+                    onAssigned();
+                    break;
                 default:
                     throw new IllegalArgumentException("unexpected Init1 server step: " + init1.getStep().getNumber());
 
@@ -145,7 +154,20 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         } else if (packet.getBody() instanceof PacketBody2Command) {
             SingleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplifyOne();
 
-            if (command.getName().equalsIgnoreCase("initivexpand2")) {
+            Ts3Debugging.debug(command.build());
+
+            if (command.getName().equalsIgnoreCase("initivexpand")) {
+                byte[] alpha = Base64.getDecoder().decode(command.get("alpha").getValue()); // alpha
+                byte[] beta = Base64.getDecoder().decode(command.get("beta").getValue()); // beta
+                byte[] omega = Base64.getDecoder().decode(command.get("omega").getValue()); // omega
+
+                getClient().setSecureParameters(Ts3Crypt.cryptoInit(alpha, beta, omega, getClient().getIdentity()));
+
+                sendClientInit();
+
+                getClient().setCommandProcessor(getClient());
+                getClient().setState(ClientConnectionState.RETRIEVING_DATA);
+            } else if (command.getName().equalsIgnoreCase("initivexpand2")) {
                 // 3.2.2 initivexpand2 (Client <- Server)
 
                 if (!command.get("ot").getValue().equals("1"))
@@ -190,48 +212,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                 alphaBytes = null;
 
-                Command clientinit = new SingleCommand(
-                        "clientinit",
-                        ProtocolRole.CLIENT,
-                        new CommandSingleParameter("client_nickname", getClient().getNickname()),
-                        new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
-                        new CommandSingleParameter("client_platform", "Windows"),
-                        new CommandSingleParameter(
-                                "client_version_sign",
-                                "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
-                        ),
-                        new CommandSingleParameter("client_input_hardware", "1"),
-                        new CommandSingleParameter("client_output_hardware", "1"),
-                        new CommandSingleParameter("client_default_channel",
-                                getClient().getOption("client.default_channel", String.class)
-                        ),
-                        new CommandSingleParameter("client_default_channel_password",
-                                getClient().getOption("client.default_channel_password", String.class)
-                        ),
-                        new CommandSingleParameter("client_server_password",
-                                getClient().getOption("client.server_password", String.class)
-                        ),
-                        new CommandSingleParameter("client_nickname_phonetic",
-                                getClient().getOption("client.nickname_phonetic", String.class)
-                        ),
-                        new CommandSingleParameter("client_meta_data", ""),
-                        new CommandSingleParameter("client_default_token",
-                                getClient().getOption("client.default_token", String.class)
-                        ),
-                        new CommandSingleParameter("client_key_offset",
-                                Long.toString(getClient().getIdentity().getKeyOffset())
-                        ),
-                        new CommandSingleParameter(
-                                "hwid",
-                                getClient().getOption("client.hwid", String.class) != null ?
-                                        getClient().getOption("client.hwid", String.class) :
-                                        "+LyYqbDqOvEEpN5pdAbF8/v5kZ0="
-                        )
-                );
-
-                Ts3Debugging.debug(clientinit.build());
-
-                getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, clientinit));
+                sendClientInit();
 
                 getClient().setCommandProcessor(getClient());
                 getClient().setState(ClientConnectionState.RETRIEVING_DATA);
@@ -239,7 +220,54 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 getClient().setState(ClientConnectionState.DISCONNECTED);
 
                 throw new IOException(command.get("msg").getValue());
+            } else {
+                throw new IOException("Unknown Init command: " + command.getName());
             }
         }
+    }
+
+    private void sendClientInit() throws IOException, TimeoutException {
+        Command clientinit = new SingleCommand(
+                "clientinit",
+                ProtocolRole.CLIENT,
+                new CommandSingleParameter("client_nickname", getClient().getNickname()),
+                new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
+                new CommandSingleParameter("client_platform", "Windows"),
+                new CommandSingleParameter(
+                        "client_version_sign",
+                        "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
+                ),
+                new CommandSingleParameter("client_input_hardware", "1"),
+                new CommandSingleParameter("client_output_hardware", "1"),
+                new CommandSingleParameter("client_default_channel",
+                        getClient().getOption("client.default_channel", String.class)
+                ),
+                new CommandSingleParameter("client_default_channel_password",
+                        getClient().getOption("client.default_channel_password", String.class)
+                ),
+                new CommandSingleParameter("client_server_password",
+                        getClient().getOption("client.server_password", String.class)
+                ),
+                new CommandSingleParameter("client_nickname_phonetic",
+                        getClient().getOption("client.nickname_phonetic", String.class)
+                ),
+                new CommandSingleParameter("client_meta_data", ""),
+                new CommandSingleParameter("client_default_token",
+                        getClient().getOption("client.default_token", String.class)
+                ),
+                new CommandSingleParameter("client_key_offset",
+                        Long.toString(getClient().getIdentity().getKeyOffset())
+                ),
+                new CommandSingleParameter(
+                        "hwid",
+                        getClient().getOption("client.hwid", String.class) != null ?
+                                getClient().getOption("client.hwid", String.class) :
+                                "+LyYqbDqOvEEpN5pdAbF8/v5kZ0="
+                )
+        );
+
+        Ts3Debugging.debug(clientinit.build());
+
+        getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, clientinit));
     }
 }

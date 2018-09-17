@@ -39,7 +39,7 @@ public class ServerConnectionTest  {
             try {
 
                 client.connect(
-                        "teamlixo.net",
+                        new InetSocketAddress("178.32.109.167", 11079),
                         null,
                         10000L
                 );
