@@ -82,6 +82,9 @@ public class PacketBody8Init1 extends PacketBody {
             case 4:
                 step = new Step4();
                 break;
+            case 127:
+                step = new Step127();
+                break;
             default:
                 throw new IllegalArgumentException("invalid Init1 step: " + stepNumber);
         }
@@ -421,6 +424,27 @@ public class PacketBody8Init1 extends PacketBody {
         @Override
         public int getSize() {
             return 64 + 64 + 4 + 100 + 64 + clientivcommand.length;
+        }
+    }
+
+    public class Step127 extends Step {
+        protected Step127() {
+            super((byte)127, ProtocolRole.SERVER);
+        }
+
+        @Override
+        public void read(ByteBuffer byteBuffer) {
+
+        }
+
+        @Override
+        public void write(ByteBuffer byteBuffer) {
+
+        }
+
+        @Override
+        public int getSize() {
+            return 0;
         }
     }
 }

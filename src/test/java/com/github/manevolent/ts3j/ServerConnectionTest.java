@@ -24,15 +24,11 @@ public class ServerConnectionTest  {
 
         Ts3Debugging.setEnabled(true);
 
-        LocalIdentity identity = LocalIdentity.load(
-                new BigInteger(Base64.getDecoder().decode("Tj6YXM3qyRv8n25L2pH+OEJnRUl4auQf8+znjYrOmWU="))
-        );
-
-        identity.improveSecurity(10);
+        LocalIdentity identity = LocalIdentity.generateNew(9);
 
         client.setIdentity(identity);
-        client.setNickname("Hello from Java");
-        client.setHWID("JAVAJAVAJAVA");
+        client.setNickname("ts3j issue 2");
+        client.setHWID("TestTestTest");
 
 
         while (true) {
@@ -49,7 +45,7 @@ public class ServerConnectionTest  {
                 ex.printStackTrace();
             }
 
-            client.disconnect();
+            Thread.sleep(30000);
         }
     }
 }

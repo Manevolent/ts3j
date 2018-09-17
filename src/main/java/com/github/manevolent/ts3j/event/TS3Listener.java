@@ -52,4 +52,5 @@ public interface TS3Listener {
     default void onServerGroupClientDeleted(ServerGroupClientDeletedEvent e) {}
     default void onClientPoke(ClientPokeEvent e) {}
     default void onClientComposing(ClientChatComposingEvent e) {}
+    default void onPermissionList(PermissionListEvent e) {}
 }

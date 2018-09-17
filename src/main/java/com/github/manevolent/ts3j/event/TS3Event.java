@@ -79,6 +79,8 @@ public interface TS3Event {
                 return new ClientPokeEvent(command.toMap());
             case "notifyclientchatcomposing": // CLIENT
                 return new ClientChatComposingEvent(command.toMap());
+			case "notifypermissionlist": // CLIENT
+				return new PermissionListEvent(command.toMap());
 			default:
 				throw new IllegalArgumentException("unknown event: " + command.getName());
 		}
