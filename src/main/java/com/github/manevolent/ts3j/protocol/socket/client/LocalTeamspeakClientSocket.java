@@ -44,8 +44,6 @@ public class LocalTeamspeakClientSocket
 
     private DatagramSocket socket;
 
-    private final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
-
     private final Map<String, CommandProcessor> namedProcessors = new HashMap<>();
     private ExecutorService commandExecutionService = Executors.newSingleThreadExecutor();
     private final Object commandSendLock = new Object();
@@ -198,6 +196,7 @@ public class LocalTeamspeakClientSocket
         DatagramSocket socket = this.socket;
         InetSocketAddress remote = this.remote;
 
+        final DatagramPacket packet = new DatagramPacket(new byte[500], 500);
         while (socket.isBound()) {
             socket.setSoTimeout(timeout);
 
@@ -341,15 +340,24 @@ public class LocalTeamspeakClientSocket
 
             Ts3Debugging.debug("Connecting to " + remote + "...");
 
+            // Set clid
             setClientId(0);
 
+            // Resolve remote
             if (remote.isUnresolved())
                 remote = new InetSocketAddress(remote.getAddress().getHostAddress(), remote.getPort());
 
-            if (socket != null) socket.close();
+            // Release old socket (if any)
+            if (socket != null && !socket.isClosed())
+                socket.close();
+
+            // Construct new socket
             socket = new DatagramSocket();
 
+            // Bind to remote
             this.remote = remote;
+
+            // Free stuff
             serverId = null;
             awaitingCommands.clear();
             acceptingReturnCode = 0;
