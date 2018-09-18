@@ -433,8 +433,11 @@ public class PacketBody8Init1 extends PacketBody {
         }
     }
 
-    public class Step127 extends Step {
-        protected Step127() {
+    /**
+     * Retry
+     */
+    public static class Step127 extends Step {
+        public Step127() {
             super((byte)127, ProtocolRole.SERVER);
         }
 
