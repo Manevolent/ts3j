@@ -19,6 +19,12 @@ public class PacketBody8Init1 extends PacketBody {
         super(INIT1, role);
     }
 
+    public PacketBody8Init1(ProtocolRole role, Step step) {
+        this(role);
+
+        setStep(step);
+    }
+
     public byte[] getVersion() {
         return version;
     }

@@ -60,6 +60,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
             PacketBody8Init1 init1 = (PacketBody8Init1) packet.getBody();
 
             Ts3Debugging.debug("Handle Init1 step " + init1.getStep().getNumber());
+            PacketBody8Init1.Step step;
 
             switch (init1.getStep().getNumber()) {
                 case 1:
@@ -74,14 +75,11 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     }
 
                     // Build response
-                    PacketBody8Init1 response2 = new PacketBody8Init1(ProtocolRole.CLIENT);
 
                     PacketBody8Init1.Step2 step2 = new PacketBody8Init1.Step2();
                     step2.setA0reversed(serverReplyStep1.getA0reversed());
                     step2.setServerStuff(serverReplyStep1.getServerStuff());
-                    response2.setStep(step2);
-
-                    sendInit1(response2);
+                    step = step2;
                     break;
                 case 3:
                     PacketBody8Init1.Step3 serverReplyStep3 = (PacketBody8Init1.Step3)init1.getStep();
@@ -110,8 +108,6 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     );
 
                     // Build response
-                    PacketBody8Init1 response4 = new PacketBody8Init1(ProtocolRole.CLIENT);
-
                     PacketBody8Init1.Step4 step4 = new PacketBody8Init1.Step4();
 
                     step4.setLevel(serverReplyStep3.getLevel());
@@ -140,17 +136,16 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                     step4.setClientIVcommand(initiv.build().getBytes(Charset.forName("UTF8")));
 
-                    response4.setStep(step4);
-
-                    sendInit1(response4);
+                    step = step4;
                     break;
                 case 127:
                     onAssigned();
-                    break;
+                    return;
                 default:
                     throw new IllegalArgumentException("unexpected Init1 server step: " + init1.getStep().getNumber());
-
             }
+
+            sendInit1(new PacketBody8Init1(getClient().getRole().getOut(), step));
         } else if (packet.getBody() instanceof PacketBody2Command) {
             SingleCommand command = ((PacketBody2Command) packet.getBody()).parse().simplifyOne();
 
