@@ -14,10 +14,6 @@ public abstract class LocalClientHandler extends PacketHandler {
         this.client = client;
     }
 
-    public void handleConnectionStateChanging(ClientConnectionState clientConnectionState) {
-
-    }
-
     public LocalTeamspeakClientSocket getClient() {
         return client;
     }

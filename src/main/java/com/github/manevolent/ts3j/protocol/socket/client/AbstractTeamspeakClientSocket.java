@@ -195,8 +195,9 @@ public abstract class AbstractTeamspeakClientSocket
 
         PacketHandler handler = getHandler();
 
-        if (handler != null)
-            ((LocalClientHandler) handler).handleConnectionStateChanging(state);
+        if (handler != null ) {
+            handler.handleConnectionStateChanging(state);
+        }
 
         Class<? extends PacketHandler> handlerClass = getHandlerClass(state);
 
