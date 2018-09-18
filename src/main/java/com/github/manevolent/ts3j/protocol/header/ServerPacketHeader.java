@@ -6,18 +6,8 @@ import com.github.manevolent.ts3j.protocol.packet.PacketBodyType;
 import java.nio.ByteBuffer;
 
 public class ServerPacketHeader extends PacketHeader {
-    private int packetFlags;
-
     public ServerPacketHeader() {
         super(ProtocolRole.SERVER);
-    }
-
-    public int getPacketFlags() {
-        return packetFlags;
-    }
-
-    public void setPacketFlags(int packetFlags) {
-        this.packetFlags = packetFlags;
     }
 
     @Override
