@@ -17,6 +17,11 @@ import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody2Command;
+import com.github.manevolent.ts3j.protocol.packet.handler.PacketHandler;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerConnected;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerConnecting;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerDisconnected;
+import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerRetrievingData;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
 import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
@@ -171,6 +176,22 @@ public class LocalTeamspeakClientSocket
     }
 
     @Override
+    protected Class<? extends PacketHandler> getHandlerClass(ClientConnectionState state) {
+        switch (state) {
+            case DISCONNECTED:
+                return LocalClientHandlerDisconnected.class;
+            case CONNECTED:
+                return LocalClientHandlerConnected.class;
+            case RETRIEVING_DATA:
+                return LocalClientHandlerRetrievingData.class;
+            case CONNECTING:
+                return LocalClientHandlerConnecting.class;
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    @Override
     protected NetworkPacket readNetworkPacket(int timeout) throws
             IOException,
             SocketTimeoutException {
@@ -273,6 +294,14 @@ public class LocalTeamspeakClientSocket
         remote = null;
     }
 
+    /**
+     * Initiates a connection to a server
+     * @param hostname Hostname to contact
+     * @param timeout timeout, in milliseconds, to complete a connection.
+     */
+    public void connect(String hostname, long timeout) throws IOException, TimeoutException {
+        connect(hostname, null, timeout);
+    }
 
     /**
      * Initiates a connection to a server

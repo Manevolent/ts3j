@@ -30,13 +30,10 @@ public class ServerConnectionTest  {
         client.setNickname("ts3j issue 2");
         client.setHWID("TestTestTest");
 
-
         while (true) {
             try {
-
                 client.connect(
-                        new InetSocketAddress("178.32.109.167", 11079),
-                        null,
+                        "teamlixo.net",
                         10000L
                 );
 

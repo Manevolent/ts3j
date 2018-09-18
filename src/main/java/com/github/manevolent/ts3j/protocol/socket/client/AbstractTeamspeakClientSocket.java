@@ -24,6 +24,7 @@ import com.github.manevolent.ts3j.util.QuickLZ;
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
+import org.apache.commons.lang.reflect.ConstructorUtils;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import java.io.EOFException;
@@ -144,6 +145,8 @@ public abstract class AbstractTeamspeakClientSocket
         return packetStatistics.get(kind);
     }
 
+    protected abstract Class<? extends PacketHandler> getHandlerClass(ClientConnectionState state);
+
     protected void start() {
         Thread networkThread = new Thread(networkReader);
         networkThread.setDaemon(true);
@@ -195,12 +198,18 @@ public abstract class AbstractTeamspeakClientSocket
         if (handler != null)
             ((LocalClientHandler) handler).handleConnectionStateChanging(state);
 
-        if (handler == null || handler.getClass() != state.getHandlerClass()) {
-            Ts3Debugging.debug("Assigning " + state.getHandlerClass().getName() + " handler...");
+        Class<? extends PacketHandler> handlerClass = getHandlerClass(state);
 
-            setHandler(state.createHandler(this));
+        if (handler == null || handler.getClass() != handlerClass) {
+            Ts3Debugging.debug("Assigning " + handlerClass + " handler...");
 
-            Ts3Debugging.debug("Assigned " + state.getHandlerClass().getName() + " handler.");
+            try {
+                setHandler(createHandler(handlerClass));
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException(e);
+            }
+
+            Ts3Debugging.debug("Assigned " + handlerClass + " handler.");
         }
     }
 
@@ -1430,4 +1439,7 @@ public abstract class AbstractTeamspeakClientSocket
         }
     }
 
+    private PacketHandler createHandler(Class<? extends PacketHandler> clazz) throws ReflectiveOperationException {
+        return (PacketHandler) ConstructorUtils.invokeConstructor(clazz, this);
+    }
 }
