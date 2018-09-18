@@ -24,6 +24,8 @@ import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
 public class LocalClientHandlerConnecting extends LocalClientHandler {
+    private static final byte[] INIT1_VERSION = new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF };
+
     private byte[] randomBytes;
     private byte[] alphaBytes;
 
@@ -42,14 +44,14 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         randomBytes = new byte[4];
         random.nextBytes(randomBytes);
         step.setRandom(randomBytes);
-        step.setTimestamp((int) ((System.currentTimeMillis() / 1000L) & 0xFFFF));
+        step.setTimestamp((int) ((System.currentTimeMillis() / 1000L)));
         packet.setStep(step);
 
         sendInit1(packet);
     }
 
     private void sendInit1(PacketBody8Init1 packet) throws IOException, TimeoutException {
-        packet.setVersion(new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF });
+        packet.setVersion(INIT1_VERSION);
 
         getClient().writePacket(packet);
     }
