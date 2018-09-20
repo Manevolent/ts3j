@@ -562,8 +562,8 @@ public class LocalTeamspeakClientSocket
         private final int returnCode;
         private final Command command;
         private final List<MultiCommand> commands = new LinkedList<>();
+        private final Object sendLock = new Object();
 
-        private Object sendLock = new Object();
         private boolean sent = false;
 
         public ClientCommandResponse(int returnCode,
@@ -580,7 +580,7 @@ public class LocalTeamspeakClientSocket
                 throws CommandProcessException {
             if (multiCommand.getName().equalsIgnoreCase("error"))
                 try {
-                    handleError(multiCommand.simplifyOne());
+                    handleComplete(multiCommand.simplifyOne());
                 } catch (IOException | TimeoutException e) {
                     throw new CommandProcessException(e);
                 }
@@ -594,7 +594,7 @@ public class LocalTeamspeakClientSocket
                 throws CommandProcessException {
             if (command.getName().equalsIgnoreCase("error"))
                 try {
-                    handleError(command);
+                    handleComplete(command);
                 } catch (IOException | TimeoutException e) {
                     throw new CommandProcessException(e);
                 }
@@ -602,23 +602,24 @@ public class LocalTeamspeakClientSocket
                 commands.add(new MultiCommand(command.getName(), ProtocolRole.CLIENT, command));
         }
 
-        private void handleError(SingleCommand command) throws IOException, TimeoutException {
+        private void handleComplete(SingleCommand command) throws IOException, TimeoutException {
             try {
-                int errorId = Integer.parseInt(command.get("id").getValue());
-
                 synchronized (commandSendLock) {
                     awaitingCommands.remove(returnCode);
                     acceptingReturnCode = calculateAcceptingReturnCode();
                 }
+
+                int errorId = Integer.parseInt(command.get("id").getValue());
 
                 switch (errorId) {
                     case 0:
                         completeSuccess(commands);
                         break;
                     default:
-                        completeFailure(new CommandException(command.get("msg").getValue(), errorId));
-                        break;
+                        throw new CommandException(command.get("msg").getValue(), errorId);
                 }
+            } catch (Throwable e) {
+                completeFailure(e);
             } finally {
                 sendNextCommand();
             }
@@ -637,12 +638,8 @@ public class LocalTeamspeakClientSocket
                 throws IOException, TimeoutException {
             synchronized (sendLock) {
                 if (!sent) {
-                    LocalTeamspeakClientSocket.this.writePacket(
-                            new PacketBody2Command(ProtocolRole.CLIENT, command)
-                    );
-
+                    LocalTeamspeakClientSocket.this.writePacket(new PacketBody2Command(ProtocolRole.CLIENT, command));
                     sent = true;
-
                     return true;
                 }
 
