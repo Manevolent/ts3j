@@ -1146,30 +1146,39 @@ public abstract class AbstractTeamspeakClientSocket
 
         @Override
         public int getGeneration(int packetId) {
+            Pair<Integer, Integer> bufferStartCopy;
+            Pair<Integer, Integer> bufferEndCopy;
+
+            // Shorter synchronization
+            synchronized (this) {
+                bufferStartCopy = this.bufferStart;
+                bufferEndCopy = this.bufferEnd;
+            }
+
             packetId %= generationSize;
 
             // find if right of the start and within the start's bounds
-            if (packetId >= bufferStart.getValue()
-                    && packetId < bufferStart.getValue() + bufferSize
+            if (packetId >= bufferStartCopy.getValue()
+                    && packetId < bufferStartCopy.getValue() + bufferSize
                     && packetId < generationSize) {
-                return bufferStart.getKey();
+                return bufferStartCopy.getKey();
             }
 
             // find if left of end and within the end's bounds
-            if (packetId <= bufferEnd.getValue()
+            if (packetId <= bufferEndCopy.getValue()
                     && packetId > 0
-                    && packetId > bufferEnd.getValue() - bufferSize
+                    && packetId > bufferEndCopy.getValue() - bufferSize
                     && packetId < generationSize) {
-                return bufferEnd.getKey();
+                return bufferEndCopy.getKey();
             }
 
             // find if outside of buffer to the right
-            if (packetId > bufferEnd.getValue())
-                return bufferEnd.getKey(); // ahead in current generation
+            if (packetId > bufferEndCopy.getValue())
+                return bufferEndCopy.getKey(); // ahead in current generation
 
             // find if outside of buffer to the left
-            if (packetId < bufferStart.getValue())
-                return bufferEnd.getKey() + 1; // modulated wrap, ahead of current generation
+            if (packetId < bufferStartCopy.getValue())
+                return bufferEndCopy.getKey() + 1; // modulated wrap, ahead of current generation
 
             // should never arrive here.
             throw new IllegalStateException();
@@ -1187,91 +1196,101 @@ public abstract class AbstractTeamspeakClientSocket
 
         @Override
         public boolean put(int packetId) {
-            // find if right of the start and within the start's bounds
-            if (packetId >= bufferStart.getValue()
-                    && packetId < bufferStart.getValue() + bufferSize
-                    && packetId < generationSize) {
-                latestPacketId = Math.max(latestPacketId, packetId);
+            synchronized (this) {
+                // find if right of the start and within the start's bounds
+                if (packetId >= bufferStart.getValue()
+                        && packetId < bufferStart.getValue() + bufferSize
+                        && packetId < generationSize) {
+                    latestPacketId = Math.max(latestPacketId, packetId);
 
-                return putRelative(packetId - bufferStart.getValue(), bufferStart.getKey());
-            }
-
-            // find if left of end and within the end's bounds
-            if (packetId <= bufferEnd.getValue()
-                    && packetId >= 0
-                    && packetId > bufferEnd.getValue() - bufferSize
-                    && packetId < generationSize) {
-                latestPacketId = Math.max(latestPacketId, packetId);
-
-                return putRelative(bufferSize - (bufferEnd.getValue() - packetId) - 1, bufferEnd.getKey());
-            }
-
-            // distance the start position must move right by
-            int amountMoved = 0;
-
-            // find if outside of buffer to the right
-            if (packetId > bufferEnd.getValue()) { // slide buffer forward uniformly
-                amountMoved = packetId - bufferEnd.getValue();
-            }
-
-            // find if outside of buffer to the left
-            if (packetId < bufferStart.getValue()) { // start wrapping buffer or continue to do so
-                amountMoved =
-                        (generationSize - bufferStart.getValue()) +
-                        packetId + 1;
-
-                amountMoved -= bufferSize;
-            }
-
-            if (amountMoved > 0) { // should always be true
-                int toMove = Math.max(0, bufferSize - amountMoved);
-                if (toMove > 0 && toMove < bufferSize)
-                    System.arraycopy(buffer, amountMoved, buffer, 0, toMove);
-
-                int toNullify = Math.max(0, Math.min(bufferSize, amountMoved));
-                for (int i = bufferSize - toNullify; i < bufferSize; i ++)
-                    buffer[i] = null;
-
-                int bufferStartGeneration = bufferStart.getKey();
-                int bufferStartPosition = bufferStart.getValue();
-
-                bufferStartPosition += amountMoved;
-                if (bufferStartPosition >= generationSize) {
-                    bufferStartPosition %= generationSize;
-                    bufferStartGeneration ++;
+                    return putRelative(packetId - bufferStart.getValue(), bufferStart.getKey());
                 }
 
-                int bufferEndGeneration;
-                int bufferEndPosition = (bufferStartPosition + bufferSize - 1) % generationSize;
-                if (bufferEndPosition < bufferStartPosition) {
-                    bufferEndGeneration = bufferStartGeneration + 1;
+                // find if left of end and within the end's bounds
+                if (packetId <= bufferEnd.getValue()
+                        && packetId >= 0
+                        && packetId > bufferEnd.getValue() - bufferSize
+                        && packetId < generationSize) {
+                    latestPacketId = Math.max(latestPacketId, packetId);
+
+                    return putRelative(bufferSize - (bufferEnd.getValue() - packetId) - 1, bufferEnd.getKey());
+                }
+
+                // distance the start position must move right by
+                int amountMoved = 0;
+
+                // find if outside of buffer to the right
+                if (packetId > bufferEnd.getValue()) { // slide buffer forward uniformly
+                    amountMoved = packetId - bufferEnd.getValue();
+                }
+
+                // find if outside of buffer to the left
+                if (packetId < bufferStart.getValue()) { // start wrapping buffer or continue to do so
+                    amountMoved =
+                            (generationSize - bufferStart.getValue()) +
+                                    packetId + 1;
+
+                    amountMoved -= bufferSize;
+                }
+
+                if (amountMoved > 0) { // should always be true
+                    int toMove = Math.max(0, bufferSize - amountMoved);
+                    if (toMove > 0 && toMove < bufferSize)
+                        System.arraycopy(buffer, amountMoved, buffer, 0, toMove);
+
+                    int toNullify = Math.max(0, Math.min(bufferSize, amountMoved));
+                    for (int i = bufferSize - toNullify; i < bufferSize; i++)
+                        buffer[i] = null;
+
+                    int bufferStartGeneration = bufferStart.getKey();
+                    int bufferStartPosition = bufferStart.getValue();
+
+                    bufferStartPosition += amountMoved;
+                    if (bufferStartPosition >= generationSize) {
+                        bufferStartPosition %= generationSize;
+                        bufferStartGeneration++;
+                    }
+
+                    int bufferEndGeneration;
+                    int bufferEndPosition = (bufferStartPosition + bufferSize - 1) % generationSize;
+                    if (bufferEndPosition < bufferStartPosition) {
+                        bufferEndGeneration = bufferStartGeneration + 1;
+                    } else
+                        bufferEndGeneration = bufferStartGeneration;
+
+                    this.bufferStart = new Pair<>(bufferStartGeneration, bufferStartPosition);
+                    this.bufferEnd = new Pair<>(bufferEndGeneration, bufferEndPosition);
                 } else
-                    bufferEndGeneration = bufferStartGeneration;
+                    throw new IllegalStateException();
 
-                this.bufferStart = new Pair<>(bufferStartGeneration, bufferStartPosition);
-                this.bufferEnd = new Pair<>(bufferEndGeneration, bufferEndPosition);
-            } else
-                throw new IllegalStateException();
+                // if we had to adjust the buffer size, recursively retry put
+                this.latestPacketId = packetId;
 
-            // if we had to adjust the buffer size, recursively retry put
-            this.latestPacketId = packetId;
-
-            return put(packetId);
+                return put(packetId);
+            }
         }
 
         @Override
         public void reset() {
-            for (int i = 0; i < bufferSize; i ++)
-                buffer[i] = null;
+            synchronized (this) {
+                for (int i = 0; i < bufferSize; i++)
+                    this.buffer[i] = null;
+
+                this.bufferStart = new Pair<>(0, 0);
+                this.bufferEnd = new Pair<>(0, bufferSize - 1);
+                this.latestPacketId = 0;
+            }
         }
 
         private boolean putRelative(int index, int generation) {
-            Integer existing = buffer[index];
-            if (existing == null || existing != generation) {
-                buffer[index] = generation;
-                return true;
-            } else {
-                return false;
+            synchronized (this) {
+                Integer existing = buffer[index];
+                if (existing == null || existing != generation) {
+                    buffer[index] = generation;
+                    return true;
+                } else {
+                    return false;
+                }
             }
         }
     }
