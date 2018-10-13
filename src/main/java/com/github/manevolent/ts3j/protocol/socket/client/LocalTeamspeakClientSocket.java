@@ -507,6 +507,8 @@ public class LocalTeamspeakClientSocket
 
     private class MicrophoneTask implements Runnable {
         private boolean wasSendingAudio = false;
+        private byte sessionId = 1;
+        private int flaggedPackets = 5;
 
         @Override
         public void run() {
@@ -525,12 +527,17 @@ public class LocalTeamspeakClientSocket
             } else if (microphone.isReady()) {
                 PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
 
+                if (flaggedPackets > 0) {
+                    voice.setServerFlag0(sessionId);
+                }
+
                 voice.setCodecType(microphone.getCodec());
                 voice.setCodecData(microphone.provide());
 
                 try {
                     writePacket(voice);
 
+                    flaggedPackets --;
                     wasSendingAudio = true;
                 } catch (Exception e) {
                     // All we are really concerned about here is a disconnection event, in which case the loop
@@ -545,6 +552,13 @@ public class LocalTeamspeakClientSocket
 
                 try {
                     writePacket(voice);
+
+                    // reset decoder flag
+                    flaggedPackets = 5;
+                    sessionId ++;
+
+                    if (sessionId >= 8)
+                        sessionId = 1;
 
                     wasSendingAudio = false;
                 } catch (Exception e) {
