@@ -24,7 +24,7 @@ public class ServerConnectionTest  {
 
         Ts3Debugging.setEnabled(true);
 
-        LocalIdentity identity = LocalIdentity.generateNew(9);
+        LocalIdentity identity = LocalIdentity.generateNew(10);
 
         client.setIdentity(identity);
         client.setNickname("ts3j issue 2");

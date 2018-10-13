@@ -605,7 +605,7 @@ public class LocalTeamspeakClientSocket
         private void handleComplete(SingleCommand command) throws IOException, TimeoutException {
             try {
                 synchronized (commandSendLock) {
-                    awaitingCommands.remove(returnCode);
+                    awaitingCommands.remove(getReturnCode());
                     acceptingReturnCode = calculateAcceptingReturnCode();
                 }
 
@@ -690,12 +690,11 @@ public class LocalTeamspeakClientSocket
         switch (getState()) {
             case RETRIEVING_DATA:
             case CONNECTED:
-                Command banCommand = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
-
-                banCommand.add(new CommandSingleParameter("client_nickname", nickname));
+                Command command = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
+                command.add(new CommandSingleParameter("client_nickname", nickname));
 
                 try {
-                    executeCommand(banCommand).complete();
+                    executeCommand(command).complete();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
