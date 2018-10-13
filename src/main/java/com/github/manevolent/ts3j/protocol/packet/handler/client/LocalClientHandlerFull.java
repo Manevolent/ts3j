@@ -56,12 +56,12 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                 break;
 
             case VOICE:
-                Consumer<Packet> handler = getClient().getVoiceHandler();
-                if (handler != null) handler.accept(packet);
+                Consumer<PacketBody0Voice> handler = getClient().getVoiceHandler();
+                if (handler != null) handler.accept((PacketBody0Voice)packet.getBody());
                 break;
             case VOICE_WHISPER:
-                Consumer<Packet> whisperConsumer = getClient().getWhisperHandler();
-                if (whisperConsumer != null) whisperConsumer.accept(packet);
+                Consumer<PacketBody1VoiceWhisper> whisperConsumer = getClient().getWhisperHandler();
+                if (whisperConsumer != null) whisperConsumer.accept((PacketBody1VoiceWhisper)packet.getBody());
                 break;
         }
     }
