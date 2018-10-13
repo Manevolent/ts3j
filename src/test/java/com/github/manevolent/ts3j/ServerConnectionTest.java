@@ -32,7 +32,7 @@ public class ServerConnectionTest  {
         client.setHWID("TestTestTest");
 
         client.setVoiceHandler(packet ->
-                System.out.println(((PacketBody0Voice)packet.getBody()).getServerFlag0())
+                System.out.println(packet.getServerFlag0())
         );
 
         while (true) {
