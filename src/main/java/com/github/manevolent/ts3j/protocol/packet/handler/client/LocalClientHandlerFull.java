@@ -54,6 +54,7 @@ public abstract class LocalClientHandlerFull extends LocalClientHandler {
                 }
 
                 break;
+
             case VOICE:
                 Consumer<Packet> handler = getClient().getVoiceHandler();
                 if (handler != null) handler.accept(packet);
