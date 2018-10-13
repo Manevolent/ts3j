@@ -16,8 +16,21 @@ public class PacketBody1VoiceWhisper extends PacketBody {
     private WhisperTarget target;
     private byte[] codecData;
 
+    // Unknown at this time (have seen: 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07)
+    // Set for the first 5 packets of a new voice session
+    // I believe this is related to tracking opening a new decoder
+    // Not all new voice sessions will change this flag
+    // Best to ignore it for now, but it's here if you need it or figure it out
+    private Byte serverFlag0;
+
     public PacketBody1VoiceWhisper(ProtocolRole role) {
         super(PacketBodyType.VOICE_WHISPER, role);
+    }
+
+    public Byte getServerFlag0() { return serverFlag0; }
+
+    public void setServerFlag0(Byte flag) {
+        this.serverFlag0 = flag;
     }
 
     @Override
@@ -26,17 +39,25 @@ public class PacketBody1VoiceWhisper extends PacketBody {
             header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, true);
         else
             header.setPacketFlag(HeaderFlag.NEW_PROTOCOL, false);
+
+        if (serverFlag0 != null) // Ensure padding is signaled
+            header.setPacketFlag(HeaderFlag.COMPRESSED, true);
     }
 
     @Override
     public void read(PacketHeader header, ByteBuffer buffer) {
+        int padding = 0;
+        boolean compressed = header.getPacketFlag(HeaderFlag.COMPRESSED);
+
+        if (compressed)
+            padding ++;
+
         packetId = buffer.getShort() & 0xFFFF;
 
         if (getRole() == ProtocolRole.SERVER)
             clientId = buffer.getShort() & 0xFFFF;
 
         codecType = CodecType.fromId((int) (buffer.get() & 0xFF));
-
 
         if (getRole() == ProtocolRole.CLIENT) {
             if (header.getPacketFlag(HeaderFlag.NEW_PROTOCOL)) {
@@ -50,14 +71,20 @@ public class PacketBody1VoiceWhisper extends PacketBody {
 
         target.read(buffer);
 
-        read(buffer);
+        codecData = new byte[buffer.remaining() - padding];
+        buffer.get(codecData);
+
+        // Handle trailing data
+        if (padding > 0) {
+            if (compressed)
+                serverFlag0 = buffer.get();
+        }
     }
 
     // We implemented the above so this is unneccessary.
     @Override
     public void read(ByteBuffer buffer) {
-        codecData = new byte[buffer.remaining()];
-        buffer.get(codecData);
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -73,15 +100,18 @@ public class PacketBody1VoiceWhisper extends PacketBody {
             target.write(buffer);
 
         buffer.put(codecData);
+
+        if (serverFlag0 != null)
+            buffer.put(serverFlag0);
     }
 
     @Override
     public int getSize() {
         switch (getRole()) {
             case CLIENT:
-                return 2 + 1 + target.getSize() + codecData.length;
+                return 2 + 1 + target.getSize() + codecData.length + (serverFlag0 != null ? 1 : 0);
             case SERVER:
-                return 2 + 2 + 1 + codecData.length;
+                return 2 + 2 + 1 + codecData.length + (serverFlag0 != null ? 1 : 0);
             default:
                 throw new IllegalArgumentException("unknown role");
         }

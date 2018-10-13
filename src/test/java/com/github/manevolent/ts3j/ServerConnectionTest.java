@@ -5,6 +5,7 @@ import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
+import com.github.manevolent.ts3j.protocol.Packet;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
@@ -22,13 +23,17 @@ public class ServerConnectionTest  {
 
         LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
 
-        Ts3Debugging.setEnabled(true);
+        Ts3Debugging.setEnabled(false);
 
         LocalIdentity identity = LocalIdentity.generateNew(10);
 
         client.setIdentity(identity);
         client.setNickname("ts3j issue 2");
         client.setHWID("TestTestTest");
+
+        client.setVoiceHandler(packet ->
+                System.out.println(((PacketBody0Voice)packet.getBody()).getServerFlag0())
+        );
 
         while (true) {
             try {
