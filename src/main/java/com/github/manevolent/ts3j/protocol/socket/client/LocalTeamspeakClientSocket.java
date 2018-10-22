@@ -359,8 +359,16 @@ public class LocalTeamspeakClientSocket
 
             // Free stuff
             serverId = null;
-            awaitingCommands.clear();
-            acceptingReturnCode = 0;
+
+
+            synchronized (commandSendLock) {
+                for (Integer id : new ArrayList<>(awaitingCommands.keySet())) {
+                    ClientCommandResponse response = awaitingCommands.get(id);
+                    response.completeFailure(new IOException("client disconnected"));
+                }
+                awaitingCommands.clear();
+                calculateAcceptingReturnCode();
+            }
 
             setOption("client.hostname", remote.getHostString());
 
@@ -604,11 +612,6 @@ public class LocalTeamspeakClientSocket
 
         private void handleComplete(SingleCommand command) throws IOException, TimeoutException {
             try {
-                synchronized (commandSendLock) {
-                    awaitingCommands.remove(returnCode);
-                    acceptingReturnCode = calculateAcceptingReturnCode();
-                }
-
                 int errorId = Integer.parseInt(command.get("id").getValue());
 
                 switch (errorId) {
@@ -621,7 +624,11 @@ public class LocalTeamspeakClientSocket
             } catch (Throwable e) {
                 completeFailure(e);
             } finally {
-                sendNextCommand();
+                synchronized (commandSendLock) {
+                    awaitingCommands.remove(getReturnCode());
+                    acceptingReturnCode = calculateAcceptingReturnCode();
+                    sendNextCommand();
+                }
             }
         }
 
