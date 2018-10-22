@@ -515,6 +515,8 @@ public class LocalTeamspeakClientSocket
 
     private class MicrophoneTask implements Runnable {
         private boolean wasSendingAudio = false;
+        private byte sessionId = 1;
+        private int flaggedPackets = 5;
 
         @Override
         public void run() {
@@ -531,14 +533,19 @@ public class LocalTeamspeakClientSocket
                 // TODO
                 // Set a state and send a muted event
             } else if (microphone.isReady()) {
+                byte[] data = microphone.provide();
+                if (data.length <= 0) return;
+
                 PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
 
                 voice.setCodecType(microphone.getCodec());
-                voice.setCodecData(microphone.provide());
+                voice.setCodecData(data);
+                if (flaggedPackets > 0) voice.setServerFlag0(sessionId);
 
                 try {
                     writePacket(voice);
 
+                    flaggedPackets --;
                     wasSendingAudio = true;
                 } catch (Exception e) {
                     // All we are really concerned about here is a disconnection event, in which case the loop
@@ -553,6 +560,13 @@ public class LocalTeamspeakClientSocket
 
                 try {
                     writePacket(voice);
+
+                    // reset decoder flag
+                    flaggedPackets = 5;
+                    sessionId ++;
+
+                    if (sessionId >= 8)
+                        sessionId = 1;
 
                     wasSendingAudio = false;
                 } catch (Exception e) {
@@ -697,12 +711,11 @@ public class LocalTeamspeakClientSocket
         switch (getState()) {
             case RETRIEVING_DATA:
             case CONNECTED:
-                Command banCommand = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
-
-                banCommand.add(new CommandSingleParameter("client_nickname", nickname));
+                Command command = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
+                command.add(new CommandSingleParameter("client_nickname", nickname));
 
                 try {
-                    executeCommand(banCommand).complete();
+                    executeCommand(command).complete();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

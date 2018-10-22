@@ -2,6 +2,8 @@ package com.github.manevolent.ts3j.protocol.packet;
 
 import com.github.manevolent.ts3j.enums.CodecType;
 import com.github.manevolent.ts3j.protocol.ProtocolRole;
+import com.github.manevolent.ts3j.protocol.header.HeaderFlag;
+import com.github.manevolent.ts3j.protocol.header.PacketHeader;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
 import java.nio.ByteBuffer;
@@ -11,6 +13,13 @@ public class PacketBody0Voice extends PacketBody {
     private int clientId;
     private CodecType codecType;
     private byte[] codecData;
+
+    // Unknown at this time (have seen: 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07)
+    // Set for the first 5 packets of a new voice session
+    // I believe this is related to tracking opening a new decoder
+    // Not all new voice sessions will change this flag
+    // Best to ignore it for now, but it's here if you need it or figure it out
+    private Byte serverFlag0;
 
     public PacketBody0Voice(ProtocolRole role) {
         super(PacketBodyType.VOICE, role);
@@ -44,11 +53,43 @@ public class PacketBody0Voice extends PacketBody {
         return clientId;
     }
 
+    public Byte getServerFlag0() { return serverFlag0; }
+
+    public void setServerFlag0(Byte flag) {
+        this.serverFlag0 = flag;
+    }
+
     public void setClientId(int clientId) {
         if (getRole() != ProtocolRole.SERVER)
             throw new IllegalStateException("cannot set client ID field on non-server packet");
 
         this.clientId = clientId;
+    }
+
+    @Override
+    public void setHeaderValues(PacketHeader header) {
+        if (serverFlag0 != null) // Ensure padding is signaled
+            header.setPacketFlag(HeaderFlag.COMPRESSED, true);
+    }
+
+    @Override
+    public void read(PacketHeader header, ByteBuffer buffer) {
+        super.read(header, buffer);
+
+        int padding = 0;
+        boolean compressed = header.getPacketFlag(HeaderFlag.COMPRESSED);
+
+        if (compressed)
+            padding ++;
+
+        codecData = new byte[buffer.remaining() - padding];
+        buffer.get(codecData);
+
+        // Handle trailing data
+        if (padding > 0) {
+            if (compressed)
+                serverFlag0 = buffer.get();
+        }
     }
 
     @Override
@@ -59,10 +100,6 @@ public class PacketBody0Voice extends PacketBody {
             clientId = buffer.getShort() & 0x0000FFFF;
 
         codecType = CodecType.fromId(buffer.get() & 0xFF);
-
-        codecData = new byte[buffer.remaining()];
-
-        buffer.get(codecData);
     }
 
     @Override
@@ -75,10 +112,17 @@ public class PacketBody0Voice extends PacketBody {
         buffer.put((byte)(codecType.getIndex() & 0xFF));
 
         buffer.put(codecData);
+
+        if (serverFlag0 != null)
+            buffer.put(serverFlag0);
     }
 
     @Override
     public int getSize() {
-        return 2 + (getRole() == ProtocolRole.SERVER ? 2 : 0) + 1 + codecData.length;
+        return 2 +
+                (getRole() == ProtocolRole.SERVER ? 2 : 0) +
+                1 +
+                codecData.length +
+                (serverFlag0 != null ? 1 : 0);
     }
 }
