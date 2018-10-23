@@ -455,8 +455,10 @@ public class LocalTeamspeakClientSocket
         final ClientCommandResponse<Iterable<T>> response;
 
         synchronized (commandSendLock) {
-            if (getState() != ClientConnectionState.CONNECTED)
+            if (getState() == ClientConnectionState.DISCONNECTED)
                 throw new IOException("not connected");
+            else if (getState() == ClientConnectionState.CONNECTING)
+                throw new IOException("connecting");
 
             int maxReturnCode = calculateAcceptingReturnCode();
             if (maxReturnCode == Integer.MAX_VALUE) maxReturnCode = 0;
