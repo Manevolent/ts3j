@@ -8,6 +8,7 @@ import Punisher.NaCl.Internal.Sha512;
 import com.github.manevolent.ts3j.identity.*;
 import com.github.manevolent.ts3j.license.License;
 import org.bouncycastle.asn1.*;
+import org.bouncycastle.crypto.KeyGenerationParameters;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
@@ -124,7 +125,7 @@ public final class Ts3Crypt {
         return parameters;
     }
 
-    private static void xor(byte[] a, int aoffs, byte[] b, int boffs, int len, byte[] outBuf, int outOffs)
+    public static void xor(byte[] a, int aoffs, byte[] b, int boffs, int len, byte[] outBuf, int outOffs)
     {
         if (a.length < len || b.length < len || outBuf.length < len)
             throw new ArrayIndexOutOfBoundsException();
@@ -288,6 +289,28 @@ public final class Ts3Crypt {
 
     public static ECPoint generatePublicKeyFromPrivateKey(BigInteger privateKey) {
         return ECNamedCurveTable.getParameterSpec("prime256v1").getG().multiply(privateKey).normalize();
+    }
+
+    public static LocalIdentity loadIdentityFromAsn(byte[] asnData) throws IOException {
+        ECPoint publicKey;
+        BigInteger privateKey = null;
+
+        DERSequence asnKeyData = new DERSequence(readDERObject(asnData));
+        int bitInfo = ((DERBitString)asnKeyData.getObjectAt(0)).intValue();
+        if (bitInfo == 0 || bitInfo == 128) {
+            BigInteger x = ((ASN1Integer)asnKeyData.getObjectAt(2)).getValue();
+            BigInteger y = ((ASN1Integer)asnKeyData.getObjectAt(3)).getValue();
+
+            publicKey = getDomainParameters().getCurve().createPoint(x, y);
+
+            if (bitInfo == 128)
+                privateKey = ((ASN1Integer)asnKeyData.getObjectAt(4)).getValue();
+        } else if (bitInfo == 192) {
+            privateKey = ((ASN1Integer)asnKeyData.getObjectAt(2)).getValue();
+            publicKey = generatePublicKeyFromPrivateKey(privateKey);
+        } else throw new IllegalArgumentException("invalid DER sequence");
+
+        return new LocalIdentity(publicKey, privateKey);
     }
 
     public static final class SecureChannelParameters {
