@@ -13,17 +13,17 @@ https://github.com/Manevolent/ffmpeg4j
 If you want the latest `-SNAPSHOT`:
 
 ```
-	<repositories>
-		<repository>
-		    <id>jitpack.io</id>
-		    <url>https://jitpack.io</url>
-		</repository>
-	</repositories>
-   <dependency>
-	    <groupId>com.github.manevolent</groupId>
-	    <artifactId>ts3j</artifactId>
-	    <version>-SNAPSHOT</version>
-	</dependency>
+<repositories>
+	<repository>
+	    <id>jitpack.io</id>
+	    <url>https://jitpack.io</url>
+	</repository>
+</repositories>
+<dependency>
+    <groupId>com.github.manevolent</groupId>
+    <artifactId>ts3j</artifactId>
+    <version>-SNAPSHOT</version>
+</dependency>
 ```
 
 # Connection & Basic Setup
