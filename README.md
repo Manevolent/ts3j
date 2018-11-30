@@ -4,7 +4,7 @@ Discord: https://discord.gg/4q9jpCa
 
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
-(Shameless plug) If you want to deliver a great music bot, check out ffmpeg4j, a wrapper around the native C library FFmpeg, to get insanely low CPU usage on your YouTube video downloads, audio playback:
+(Shameless plug) If you want to deliver a great music bot, check out ffmpeg4j, a wrapper around the native C library FFmpeg, to get insanely low CPU usage on your YouTube video downloads (or streams if you don't want to hit disk), and audio playback:
 
 https://github.com/Manevolent/ffmpeg4j
 
