@@ -1088,16 +1088,34 @@ public class LocalTeamspeakClientSocket
             throws
             IOException, TimeoutException,
             ExecutionException, InterruptedException {
+        disconnect(null);
+    }
+
+    public void disconnect(String reason)
+            throws
+            IOException, TimeoutException,
+            ExecutionException, InterruptedException {
         try {
             switch (getState()) {
                 case CONNECTING:
                 case RETRIEVING_DATA:
                     waitForState(ClientConnectionState.CONNECTED, 10000L);
                 case CONNECTED:
-                    writePacket(new PacketBody2Command(
-                                    ProtocolRole.CLIENT,
-                                    new SingleCommand("clientdisconnect", ProtocolRole.CLIENT))
-                    );
+                    if (reason == null) {
+                        writePacket(new PacketBody2Command(
+                                ProtocolRole.CLIENT,
+                                new SingleCommand("clientdisconnect", ProtocolRole.CLIENT))
+                        );
+                    } else {
+                        writePacket(new PacketBody2Command(
+                                ProtocolRole.CLIENT,
+                                new SingleCommand(
+                                        "clientdisconnect", ProtocolRole.CLIENT,
+                                        new CommandSingleParameter("reasonid", "8"),
+                                        new CommandSingleParameter("reasonmsg", reason)
+                                ))
+                        );
+                    }
 
                     waitForState(ClientConnectionState.DISCONNECTED, 30000L);
 
