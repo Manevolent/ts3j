@@ -2,8 +2,7 @@ package com.github.manevolent.ts3j.identity;
 
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import org.bouncycastle.asn1.ASN1Object;
-import org.bouncycastle.asn1.DERSequence;
+import org.bouncycastle.asn1.*;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
 import org.bouncycastle.crypto.params.ECDomainParameters;
@@ -20,6 +19,8 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.security.*;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -102,6 +103,132 @@ public class LocalIdentity extends Identity {
      */
     public BigInteger getPrivateKey() {
         return privateKey;
+    }
+
+    @Override
+    public byte[] toASN() throws IOException {
+        return new DERSequence(
+                new ASN1Encodable[] {
+                        new DERBitString(128),
+                        new ASN1Integer(32),
+                        new ASN1Integer(getPublicKey().getXCoord().toBigInteger()),
+                        new ASN1Integer(getPublicKey().getYCoord().toBigInteger()),
+                        new ASN1Integer(getPrivateKey())
+                }
+        ).getEncoded();
+    }
+
+    /**
+     * Saves this local identity to a file
+     * @param file File to save to
+     * @throws IOException
+     */
+    public void save(File file) throws IOException {
+        save(file, null);
+    }
+
+    /**
+     * Saves this local identity to a file
+     * @param file File to save to
+     * @param  properties Additional properties to supply in the INI
+     * @throws IOException
+     */
+    public void save(File file, Map<String, String> properties) throws IOException {
+        save(new FileOutputStream(file), properties);
+    }
+
+    /**
+     * Saves this local identity to an output stream (i.e.,file)
+     * @param outputStream OutputStream instance to save raw bytes to
+     * @throws IOException
+     */
+    public void save(OutputStream outputStream) throws IOException {
+        save(outputStream, null);
+    }
+
+    /**
+     * Saves this local identity to an output stream (i.e.,file)
+     * @param outputStream OutputStream instance to save raw bytes to
+     * @param  properties Additional properties to supply in the INI
+     * @throws IOException
+     */
+    public void save(OutputStream outputStream, Map<String, String> properties) throws IOException {
+        try (Writer writer = new OutputStreamWriter(outputStream)) {
+            writer.write(export(properties));
+        }
+    }
+
+    /**
+     * Exports a local identity object to a Teamspeak3 client friendly format.
+     * @return TS3 identity format
+     */
+    public String export() throws IOException {
+        return export(null);
+    }
+
+    /**
+     * Exports a local identity object to a Teamspeak3 client friendly format.
+     * @param  properties Additional properties to supply in the INI
+     * @return TS3 identity format
+     */
+    public String export(Map<String, String> properties) throws IOException {
+        Map<String, String> iniFile = new HashMap<>();
+
+        if (properties != null) {
+            // id, nickname, phonetic_nickname, etc.
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
+                iniFile.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        StringBuilder identityDataBuilder = new StringBuilder();
+
+        // Encode key offset
+        identityDataBuilder.append(getKeyOffset()).append("V");
+
+        // Generate data for TS3 identity
+        byte[] identityData = toASN();
+
+        // Encode to UTF8
+        identityData = Base64.getEncoder().encodeToString(identityData).getBytes("UTF8");
+
+        // Encrypt identity
+        Ts3Crypt.xor(
+                identityData, 0,
+                identityFileObfuscationKey, 0,
+                Math.min(100, identityData.length),
+                identityData, 0
+        );
+
+        int nullIndex = 0x0; // STATIC
+
+        byte[] hash = Ts3Crypt.hash128(
+                identityData,
+                20,
+                nullIndex < 0 ? identityData.length - 20 : nullIndex
+        );
+
+        Ts3Crypt.xor(
+                identityData, 0,
+                hash, 0,
+                20,
+                identityData, 0
+        );
+
+        // Place down Base64 identity data for TS3 identity
+        identityDataBuilder.append(Base64.getEncoder().encodeToString(identityData));
+
+        iniFile.put("identity", identityDataBuilder.toString());
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("[Identity]").append("\r\n");
+        for (Map.Entry<String, String> entry : iniFile.entrySet()) {
+            builder.append(entry.getKey())
+                    .append("=")
+                    .append("\"").append(entry.getValue().replace("\"", "\\\"")).append("\"")
+                    .append("\r\n");
+        }
+        return builder.toString();
     }
 
     /**

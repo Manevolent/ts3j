@@ -231,7 +231,6 @@ public final class Ts3Crypt {
     {
         ByteArrayInputStream inStream = new ByteArrayInputStream(data);
         ASN1InputStream asnInputStream = new ASN1InputStream(inStream);
-
         ASN1Object object = asnInputStream.readObject();
 
         if (object instanceof DLSequence) {

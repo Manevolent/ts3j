@@ -2,8 +2,13 @@ package com.github.manevolent.ts3j.identity;
 
 import com.github.manevolent.ts3j.util.Ts3Crypt;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
+import org.bouncycastle.asn1.ASN1Encodable;
+import org.bouncycastle.asn1.ASN1Integer;
+import org.bouncycastle.asn1.DERBitString;
+import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.math.ec.ECPoint;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -30,6 +35,17 @@ public class Identity {
         this.publicKey = publicKey;
         this.publicKeyString = Base64.getEncoder().encodeToString(Ts3Crypt.encodePublicKey(publicKey));
         this.uid = generateUid();
+    }
+
+    public byte[] toASN() throws IOException {
+        return new DERSequence(
+                new ASN1Encodable[] {
+                        new DERBitString(0),
+                        new ASN1Integer(32),
+                        new ASN1Integer(getPublicKey().getXCoord().toBigInteger()),
+                        new ASN1Integer(getPublicKey().getYCoord().toBigInteger())
+                }
+        ).getEncoded();
     }
 
     public ECPoint getPublicKey() {
