@@ -10,7 +10,6 @@ import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.packet.PacketBody0Voice;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
-import com.sun.security.ntlm.Server;
 
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
