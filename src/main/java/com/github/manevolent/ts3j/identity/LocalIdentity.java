@@ -200,14 +200,23 @@ public class LocalIdentity extends Identity {
                 identityData, 0
         );
 
-        int nullIndex = 0x0; // STATIC
+        //int nullIdx = identityArr.AsSpan(20).IndexOf((byte)0);
+        int nullIndex = -1;
+        for (int i = 20; i < identityData.length; i ++)
+            if (identityData[i] == 0x0) {
+                nullIndex = i-20;
+                break;
+            }
 
+        //var hash = Hash1It(identityArr, 20, nullIdx < 0 ? identityArr.Length - 20 : nullIdx);
         byte[] hash = Ts3Crypt.hash128(
                 identityData,
                 20,
                 nullIndex < 0 ? identityData.length - 20 : nullIndex
         );
 
+        //XorBinary(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, int len, Span<byte> outBuf)
+        //XorBinary(identityArr, hash, 20, identityArr);
         Ts3Crypt.xor(
                 identityData, 0,
                 hash, 0,
@@ -298,7 +307,6 @@ public class LocalIdentity extends Identity {
         String utf8Decoded = new String(identityData, Charset.forName("UTF8"));
 
         LocalIdentity identity = Ts3Crypt.loadIdentityFromAsn(Base64.getDecoder().decode(utf8Decoded));
-
         identity.setKeyOffset(level);
         identity.setLastCheckedKeyOffset(level);
 
