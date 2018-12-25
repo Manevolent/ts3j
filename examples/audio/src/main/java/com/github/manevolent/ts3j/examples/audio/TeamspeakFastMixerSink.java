@@ -77,6 +77,10 @@ public class TeamspeakFastMixerSink implements TeamspeakMixerSink {
     }
 
     public void write(float[] buffer, int len) {
+        write(buffer, 0, len);
+    }
+
+    public void write(float[] buffer, int offs, int len) {
         synchronized (stateLock) {
             if (!running) throw new IllegalStateException("not running");
 
@@ -85,9 +89,9 @@ public class TeamspeakFastMixerSink implements TeamspeakMixerSink {
                 throw new IllegalArgumentException(len + " > " + availableInput());
             }
 
-            if (len > buffer.length) {
+            if (offs+len > buffer.length) {
                 overflowed++;
-                throw new IllegalArgumentException(len + " > " + buffer.length);
+                throw new IllegalArgumentException(offs+len + " > " + buffer.length);
             }
 
             if (len <= 0)
@@ -97,7 +101,7 @@ public class TeamspeakFastMixerSink implements TeamspeakMixerSink {
                 throw new IllegalArgumentException("not a full frame");
 
             // Write to the buffer
-            System.arraycopy(buffer, 0, sampleBuffer, samplePosition, len);
+            System.arraycopy(buffer, offs, sampleBuffer, samplePosition, len);
             samplePosition += len;
             availableInput -= len;
 

@@ -21,7 +21,7 @@ public class AudioSender {
 
         TeamspeakFastMixerSink sink = new TeamspeakFastMixerSink(
                 AUDIO_FORMAT,
-                (int) AUDIO_FORMAT.getSampleRate() * AUDIO_FORMAT.getChannels() * 4 /*2=16bit float*/,
+                (int) AUDIO_FORMAT.getSampleRate() * AUDIO_FORMAT.getChannels() * 4 /*4=32bit float*/,
                 new OpusParameters(
                         20,
                         96000, // 96kbps

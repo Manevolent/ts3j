@@ -536,7 +536,8 @@ public class LocalTeamspeakClientSocket
                 // Set a state and send a muted event
             } else if (microphone.isReady()) {
                 byte[] data = microphone.provide();
-                if (data.length <= 0) return;
+                if (data.length <= 0)
+                    return;
 
                 PacketBody0Voice voice = new PacketBody0Voice(getRole().getOut());
 
