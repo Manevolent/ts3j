@@ -70,8 +70,8 @@ public class LocalTeamspeakClientSocket
             @Override
             public void process(AbstractTeamspeakClientSocket client, SingleCommand singleCommand)
                     throws CommandProcessException {
-                ChannelListEvent channelListEvent = new ChannelListEvent(singleCommand.toMap());
-                for (TS3Listener listener : listeners) listener.onChannelList(channelListEvent);
+                final ChannelListEvent channelListEvent = new ChannelListEvent(singleCommand.toMap());
+                commandExecutionService.submit(() -> listeners.forEach(e -> e.onChannelList(channelListEvent)));
             }
         });
 
@@ -271,6 +271,14 @@ public class LocalTeamspeakClientSocket
 
     public void setIdentity(LocalIdentity identity) {
         super.setIdentity(identity);
+    }
+
+    @Override
+    protected void onConnect() {
+        super.onConnect();
+
+        final ConnectedEvent connectedEvent = new ConnectedEvent(Collections.emptyMap());
+        commandExecutionService.submit(() -> listeners.forEach(e -> e.onConnected(connectedEvent)));
     }
 
     @Override

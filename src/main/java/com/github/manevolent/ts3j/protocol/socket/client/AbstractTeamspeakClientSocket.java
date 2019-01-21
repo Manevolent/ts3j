@@ -188,6 +188,8 @@ public abstract class AbstractTeamspeakClientSocket
 
                 if (state == ClientConnectionState.DISCONNECTED && !initialState)
                     onDisconnect();
+                else if (state == ClientConnectionState.CONNECTED && !initialState)
+                    onConnect();
 
                 Ts3Debugging.debug("State changed: " + state.name());
             }
@@ -212,6 +214,10 @@ public abstract class AbstractTeamspeakClientSocket
 
             Ts3Debugging.debug("Assigned " + handlerClass + " handler.");
         }
+    }
+
+    protected void onConnect() {
+
     }
 
     protected void onDisconnect() {
