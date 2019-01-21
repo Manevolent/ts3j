@@ -11,18 +11,29 @@ import com.github.manevolent.ts3j.util.Ts3Debugging;
 import java.io.EOFException;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.Collection;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static com.github.manevolent.ts3j.examples.audio.TeamspeakFastMixerSink.AUDIO_FORMAT;
 
 public class MusicPlayer {
+    /**
+     * Example:
+     *  java -jar jarfile.jar my.teamspeakserver.com some.mp3
+     *
+     * args[0] - TS3 server hostname (i.e. my.teamspeakserver.com)
+     * args[1] - Audio file path (accepts MP3, FLAC, WAV, you name it.) (i.e. some.mp3 or C:\some.mp3 or /home/you/some.mp3)
+     * @param args Arguments
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception {
         Ts3Debugging.setEnabled(false);
 
         // Open file
         FFmpeg.register();
-        InputStream inputStream = new FileInputStream("bensound-ukulele.mp3");
+        InputStream inputStream = new FileInputStream(args[1]);
         FFmpegInput input = new FFmpegInput(inputStream);
         FFmpegSourceStream stream = input.open(FFmpeg.getInputFormatByName("mp3"));
         FFmpegAudioSourceSubstream audioSourceSubstream =
@@ -60,7 +71,7 @@ public class MusicPlayer {
         sink.start();
 
         client.connect(
-                "your.teamspeak.server",
+                args[0],
                 10000L
         );
 
@@ -89,12 +100,16 @@ public class MusicPlayer {
                 if (currentFrame == null || frameOffset >= currentFrame.getLength()) {
                     if (frameQueue.peek() == null) {
                         try {
-                            frameQueue.addAll(resampleFilter.apply(audioSourceSubstream.next()));
+                            AudioFrame frame = audioSourceSubstream.next();
+                            Collection<AudioFrame> frameList = resampleFilter.apply(frame);
+                            frameQueue.addAll(frameList);
                         } catch (EOFException ex) {
                             // flush currentFrame
                             break;
                         }
                     }
+
+                    if (frameQueue.size() <= 0) continue;
 
                     currentFrame = frameQueue.remove();
                     frameOffset = 0;

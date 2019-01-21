@@ -49,7 +49,7 @@ public class AudioSender {
         sink.write(thirtySecondsOfAudio, thirtySecondsOfAudio.length);
 
         client.connect(
-                "your.teamspeak.server",
+                args[0],
                 10000L
         );
 
