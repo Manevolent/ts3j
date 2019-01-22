@@ -93,6 +93,9 @@ public class MusicPlayer {
         long wake = System.nanoTime();
         long delay = 150 * 1_000_000; // 50ms interval
         long sleep;
+        long start = System.nanoTime();
+        double volume = 0.5D;
+
         while (true) {
             int available = sink.availableInput();
 
@@ -101,6 +104,9 @@ public class MusicPlayer {
                     if (frameQueue.peek() == null) {
                         try {
                             AudioFrame frame = audioSourceSubstream.next();
+                            for (int i = 0; i < frame.getLength(); i ++)
+                                frame.getSamples()[i] *= volume;
+
                             Collection<AudioFrame> frameList = resampleFilter.apply(frame);
                             frameQueue.addAll(frameList);
                         } catch (EOFException ex) {
@@ -130,6 +136,7 @@ public class MusicPlayer {
 
             wake += delay;
             sleep = (wake - System.nanoTime()) / 1_000_000;
+            System.err.println(((double)(System.nanoTime() - start) / 1_000_000_000D) + " " + (sink.getPacketsSent() / 50D) + " " + sink.getUnderflows());
 
             if (sleep > 0) Thread.sleep(sleep);
         }

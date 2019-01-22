@@ -24,7 +24,7 @@ import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHand
 import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerRetrievingData;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
-import com.github.manevolent.ts3j.util.HighPrecisionRecurrentTask;
+import com.github.manevolent.ts3j.util.HighPrecisionTimer;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 import com.github.manevolent.ts3j.util.Pair;
 
@@ -387,9 +387,9 @@ public class LocalTeamspeakClientSocket
 
             waitForState(ClientConnectionState.CONNECTED, timeout);
 
-            microphoneThread = new HighPrecisionRecurrentTask(
+            microphoneThread = new HighPrecisionTimer(
                     20,
-                    0.01F,
+                    5F, // up to 100ms of drift/catchup
                     new MicrophoneTask()
             );
 

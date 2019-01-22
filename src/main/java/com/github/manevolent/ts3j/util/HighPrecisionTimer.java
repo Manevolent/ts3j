@@ -23,52 +23,60 @@ import java.util.concurrent.locks.LockSupport;
  *
  * Time of execution is held in account when calculating the time to sleep until the next execution.
  */
-public class HighPrecisionRecurrentTask extends Thread {
-
+public class HighPrecisionTimer extends Thread {
 	private final int periodInNanos;
-	private final int spinningTimeNanos;
+	private final int maximumDriftInNanos;
 	private final Runnable target;
 	private volatile boolean stop;
 
 	/**
 	 * @param periodInMilis The period in milliseconds of the task execution.
-	 * @param percentageOfSleepSpinning The percentage of total sleeping that should be done spinning to increase accuracy.
+	 * @param catchupTicks The number of ticks allowed to consecutively catch up to
 	 * @param target The task to run.
 	 */
-	public HighPrecisionRecurrentTask(int periodInMilis, float percentageOfSleepSpinning, Runnable target) {
+	public HighPrecisionTimer(int periodInMilis,
+							  float catchupTicks,
+							  Runnable target) {
 		super("TS3J AudioThread");
-		if (percentageOfSleepSpinning < 0 || percentageOfSleepSpinning > 1)
-			throw new IllegalArgumentException("percentageOfSleepSpinning < 0 | percentageOfSleepSpinning > 1");
+
 		this.periodInNanos = periodInMilis * 1_000_000;
-		this.spinningTimeNanos = (int) (periodInNanos * percentageOfSleepSpinning);
+		this.maximumDriftInNanos = (int) Math.floor((double)periodInNanos * (double)catchupTicks);
 		this.target = target;
 	}
 
-	public boolean isStop() {
-		return stop;
-	}
-
-	public void setStop(boolean stop) {
-		this.stop = stop;
+	public void gracefulStop() {
+		if (!this.stop) {
+			this.stop = true;
+			//if (isAlive()) interrupt();
+		}
 	}
 
 	@Override
 	@SuppressWarnings(value = "empty-statement")
 	public void run() {
-		long nextTarget = 0;
+		long now = System.nanoTime();
+		long nextTarget = now;
+
 		while (!stop) {
-			long now = System.nanoTime();
 			target.run();
-			long total = System.nanoTime() - now;
-			nextTarget = now + periodInNanos - total;
-			sleepFor(periodInNanos - total - spinningTimeNanos);
-			while (nextTarget > System.nanoTime()) {
-				; //consume cycles
+
+			nextTarget += periodInNanos;
+
+			now = System.nanoTime();
+
+			// Clamp the next target to the maximum "drift" allowed
+			if (nextTarget - now > maximumDriftInNanos)
+				nextTarget = now - maximumDriftInNanos;
+
+			if (sleepFor(nextTarget - now)) {
+				while (nextTarget > System.nanoTime()) {
+					; //consume cycles
+				}
 			}
 		}
 	}
 
-	private void sleepFor(long nanos) {
+	private boolean sleepFor(long nanos) {
 		if (nanos > 0) {
 			long elapsed = 0;
 			while (elapsed < nanos) {
@@ -76,7 +84,11 @@ public class HighPrecisionRecurrentTask extends Thread {
 				LockSupport.parkNanos(nanos - elapsed);
 				elapsed += System.nanoTime() - t0;
 			}
+
+			return true;
 		}
+
+		return false;
 	}
 
 }
