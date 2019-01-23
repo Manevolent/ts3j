@@ -55,10 +55,15 @@ public class LocalTeamspeakClientSocket
 
     private List<TS3Listener> listeners = new LinkedList<>();
 
-    private int acceptingReturnCode = Integer.MAX_VALUE;
-
     private Integer serverId = null;
 
+    /**
+     * The internal command buffer
+     *
+     * This buffer ascends through specific command codes, which are calculated using:
+     *
+     * get
+     */
     private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
 
     public LocalTeamspeakClientSocket() {
@@ -292,8 +297,6 @@ public class LocalTeamspeakClientSocket
             }
 
             awaitingCommands.clear();
-
-            calculateAcceptingReturnCode();
         }
 
         serverId = null;
@@ -372,10 +375,10 @@ public class LocalTeamspeakClientSocket
             synchronized (commandSendLock) {
                 for (Integer id : new ArrayList<>(awaitingCommands.keySet())) {
                     ClientCommandResponse response = awaitingCommands.get(id);
-                    response.completeFailure(new IOException("client disconnected"));
+                    response.completeFailure(new IOException("client reconnecting"));
                 }
+
                 awaitingCommands.clear();
-                calculateAcceptingReturnCode();
             }
 
             setOption("client.hostname", remote.getHostString());
@@ -436,7 +439,7 @@ public class LocalTeamspeakClientSocket
             CommandProcessor awaitingCommandProcessor;
 
             synchronized (commandSendLock) {
-                awaitingCommandProcessor = awaitingCommands.get(acceptingReturnCode);
+                awaitingCommandProcessor = awaitingCommands.get(getAwaitingCommandCode());
             }
 
             if (awaitingCommandProcessor != null)
@@ -468,14 +471,14 @@ public class LocalTeamspeakClientSocket
             else if (getState() == ClientConnectionState.CONNECTING)
                 throw new IOException("connecting");
 
-            int maxReturnCode = calculateAcceptingReturnCode();
-            if (maxReturnCode == Integer.MAX_VALUE) maxReturnCode = 0;
-            else maxReturnCode = maxReturnCode + 1;
-            int returnCode = maxReturnCode;
+            // Calculate the next command send code we should use
+            // This is so we can sequentially send commands and expect responses in order from the server
+            int sendCode = getNextCommandCode();
+            if (sendCode >= Integer.MAX_VALUE) throw new ArrayIndexOutOfBoundsException("sendCode");
 
-            command.add(new CommandSingleParameter("return_code", Integer.toString(returnCode)));
+            command.add(new CommandSingleParameter("return_code", Integer.toString(sendCode)));
 
-            awaitingCommands.put(returnCode, response = new ClientCommandResponse<>(returnCode, multiCommands -> {
+            awaitingCommands.put(sendCode, response = new ClientCommandResponse<>(sendCode, multiCommands -> {
                 List<SingleCommand> commands = new LinkedList<>();
                 for (MultiCommand multiCommand : multiCommands) commands.addAll(multiCommand.simplify());
 
@@ -484,10 +487,14 @@ public class LocalTeamspeakClientSocket
                         .collect(Collectors.toCollection(LinkedList::new));
             }, command));
 
-            acceptingReturnCode = calculateAcceptingReturnCode();
-
-            if (acceptingReturnCode == returnCode)
-                sendNextCommand();
+            // Ensure that the next command we expect to receive a response for is sent to the network
+            // but, only send that command if the accepting receive code matches the code we picked above
+            // this ensures we don't double-send a command
+            int nextCommandCode = getAwaitingCommandCode();
+            if (nextCommandCode < 0) // This should never happen
+                throw new IllegalStateException("nextCommandCode <= 0: " + nextCommandCode);
+            else if (nextCommandCode == sendCode)
+                sendCommand(nextCommandCode);
         }
 
         return response;
@@ -508,17 +515,42 @@ public class LocalTeamspeakClientSocket
         }
     }
 
-    private int calculateAcceptingReturnCode() {
+    /**
+     * Gets the next command return_code we will create and buffer for sending.
+     *
+     * @return Next command send code
+     */
+    private int getNextCommandCode() {
+        int highest = 0;
+        for (Integer integer : awaitingCommands.keySet()) highest = Math.max(highest, integer);
+        return highest + 1;
+    }
+
+    /**
+     * Gets the next return_code we expect to receive from the server.
+     *
+     * @return command receive code
+     */
+    private int getAwaitingCommandCode() {
+        if (awaitingCommands.size() <= 0) return -1;
+
         int lowest = Integer.MAX_VALUE;
         for (Integer integer : awaitingCommands.keySet()) lowest = Math.min(lowest, integer);
-
         return lowest;
+    }
+
+    private void sendCommand(int code)
+            throws IOException, TimeoutException {
+        synchronized (commandSendLock) {
+            ClientCommandResponse currentResponse = awaitingCommands.get(code);
+            if (currentResponse != null) currentResponse.ensureSent();
+        }
     }
 
     private void sendNextCommand()
             throws IOException, TimeoutException {
         synchronized (commandSendLock) {
-            ClientCommandResponse currentResponse = awaitingCommands.get(acceptingReturnCode);
+            ClientCommandResponse currentResponse = awaitingCommands.get(getAwaitingCommandCode());
             if (currentResponse != null) currentResponse.ensureSent();
         }
     }
@@ -649,9 +681,13 @@ public class LocalTeamspeakClientSocket
             } catch (Throwable e) {
                 completeFailure(e);
             } finally {
-                synchronized (commandSendLock) {
+                synchronized (commandSendLock) { // (this is likely already locked)
+                    // Remove the current "awaiting" command.  This is removing this instance, effectively.
                     awaitingCommands.remove(getReturnCode());
-                    acceptingReturnCode = calculateAcceptingReturnCode();
+
+                    // Ensure we send the next command
+                    // This is essential to keep the command chain flowing when there are commands buffered in the
+                    // command send (awaitingCommands) queue
                     sendNextCommand();
                 }
             }

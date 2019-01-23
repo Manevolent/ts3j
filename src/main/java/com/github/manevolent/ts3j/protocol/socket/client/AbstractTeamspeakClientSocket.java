@@ -149,10 +149,12 @@ public abstract class AbstractTeamspeakClientSocket
 
     protected void start() {
         Thread networkThread = new Thread(networkReader);
+        networkThread.setName("TS3J/NetworkReader/" + networkThread.getId());
         networkThread.setDaemon(true);
         networkThread.start();
 
         Thread handlerThread = new Thread(networkHandler);
+        handlerThread.setName("TS3J/NetworkHandler/" + handlerThread.getId());
         handlerThread.setDaemon(true);
         handlerThread.start();
     }
@@ -922,19 +924,21 @@ public abstract class AbstractTeamspeakClientSocket
     private class NetworkHandler implements Runnable {
         @Override
         public void run() {
-            while (isReading()) {
-                try {
-                    Packet packet = readQueue.take();
+            try {
+                while (isReading()) {
+                    try {
+                        Packet packet = readQueue.take();
 
-                    // separate these so we getHandler at proper runtime instant rather than get it and let it change
-                    // on us
+                        // separate these so we getHandler at proper runtime instant rather than get it and let it change
+                        // on us
 
-                    getHandler().handlePacket(packet);
-                } catch (Throwable e) {
-                    if (e instanceof InterruptedException) continue;
-
-                    getExceptionHandler().accept(e);
+                        getHandler().handlePacket(packet);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
                 }
+            } catch (Throwable e) {
+                getExceptionHandler().accept(e);
             }
         }
     }
