@@ -4,6 +4,9 @@ import com.github.manevolent.ffmpeg4j.*;
 import com.github.manevolent.ffmpeg4j.filter.audio.FFmpegAudioResampleFilter;
 import com.github.manevolent.ffmpeg4j.source.FFmpegAudioSourceSubstream;
 import com.github.manevolent.ffmpeg4j.stream.source.FFmpegSourceStream;
+import com.github.manevolent.ts3j.event.ClientUpdatedEvent;
+import com.github.manevolent.ts3j.event.DisconnectedEvent;
+import com.github.manevolent.ts3j.event.TS3Listener;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
@@ -50,6 +53,13 @@ public class MusicPlayer {
         client.setIdentity(identity);
         client.setNickname(MusicPlayer.class.getSimpleName());
         client.setHWID("TestTestTest");
+
+        client.addListener(new TS3Listener() {
+            @Override
+            public void onDisconnected(DisconnectedEvent e) {
+                System.exit(-1);
+            }
+        });
 
         // Create a sink
         TeamspeakFastMixerSink sink = new TeamspeakFastMixerSink(
