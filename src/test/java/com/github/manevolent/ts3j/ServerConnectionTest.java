@@ -28,6 +28,8 @@ public class ServerConnectionTest  {
 
             client.subscribeAll();
 
+            Thread.sleep(100000);
+
             client.disconnect("BYE");
         } catch (Exception ex) {
             ex.printStackTrace();

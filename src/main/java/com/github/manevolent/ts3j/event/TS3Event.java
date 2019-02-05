@@ -79,6 +79,8 @@ public interface TS3Event {
                 return new ClientPokeEvent(command.toMap());
             case "notifyclientchatcomposing": // CLIENT
                 return new ClientChatComposingEvent(command.toMap());
+			case "notifyclientchatclosed": // CLIENT
+				return new ClientChatClosedEvent(command.toMap());
 			case "notifypermissionlist": // CLIENT
 				return new PermissionListEvent(command.toMap());
 			default:

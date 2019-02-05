@@ -29,7 +29,7 @@ public class MusicPlayer {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        Ts3Debugging.setEnabled(false);
+        Ts3Debugging.setEnabled(true);
 
         // Open file
         FFmpeg.register();
@@ -139,6 +139,8 @@ public class MusicPlayer {
             System.err.println(((double)(System.nanoTime() - start) / 1_000_000_000D) + " " + (sink.getPacketsSent() / 50D) + " " + sink.getUnderflows());
 
             if (sleep > 0) Thread.sleep(sleep);
+
+            break;
         }
 
         System.err.println("Draining...");

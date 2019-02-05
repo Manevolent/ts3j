@@ -54,4 +54,5 @@ public interface TS3Listener {
     default void onClientComposing(ClientChatComposingEvent e) {}
     default void onPermissionList(PermissionListEvent e) {}
     default void onConnected(ConnectedEvent e) {}
+    default void onClientChatClosed(ClientChatClosedEvent e) {}
 }
