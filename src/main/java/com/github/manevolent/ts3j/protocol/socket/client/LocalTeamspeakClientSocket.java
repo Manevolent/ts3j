@@ -6,6 +6,7 @@ import com.github.manevolent.ts3j.api.Client;
 import com.github.manevolent.ts3j.api.Permission;
 import com.github.manevolent.ts3j.audio.Microphone;
 import com.github.manevolent.ts3j.command.*;
+import com.github.manevolent.ts3j.command.parameter.CommandOption;
 import com.github.manevolent.ts3j.command.parameter.CommandSingleParameter;
 import com.github.manevolent.ts3j.command.response.AbstractCommandResponse;
 import com.github.manevolent.ts3j.command.response.CommandResponse;
@@ -454,7 +455,14 @@ public class LocalTeamspeakClientSocket
         );
     }
 
-    private CommandResponse<Iterable<SingleCommand>> executeCommand(Command command)
+    /**
+     * Executes a command.
+     * @param command Command to execute.
+     * @return Future, command response object.
+     * @throws IOException if there is a connectivity-level exception.
+     * @throws TimeoutException if command send times out.
+     */
+    public CommandResponse<Iterable<SingleCommand>> executeCommand(Command command)
             throws IOException, TimeoutException {
         return executeCommand(command, Function.identity());
     }
@@ -862,6 +870,58 @@ public class LocalTeamspeakClientSocket
         deleteBan(ban.getId());
     }
 
+    /*
+    public void clientListPermission(int clientDatabaseId)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        MultiCommand command = new MultiCommand(
+                "clientpermlist",
+                ProtocolRole.CLIENT,
+                new SingleCommand("clientlistperm", ProtocolRole.CLIENT)
+        );
+
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+        command.add(new CommandOption("permsid"));
+
+        executeCommand(command).complete();
+    }
+    */
+
+    public void clientAddPermission(int clientDatabaseId, Permission... permission)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        MultiCommand command = new MultiCommand(
+                "clientaddperm",
+                ProtocolRole.CLIENT,
+                Arrays.stream(permission).map(x ->
+                        new SingleCommand("clientaddperm", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("permsid", x.getName()),
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue())),
+                                new CommandSingleParameter("permskip", Integer.toString(x.isNegated() ? 1 : 0))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
+    }
+
+    public void clientDeletePermission(int clientDatabaseId, Permission... permission)
+            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+        MultiCommand command = new MultiCommand(
+                "clientdelperm",
+                ProtocolRole.CLIENT,
+                Arrays.stream(permission).map(x ->
+                        new SingleCommand("clientdelperm", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter("permsid", x.getName()),
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue())),
+                                new CommandSingleParameter("permskip", Integer.toString(x.isNegated() ? 1 : 0))
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("cldbid", Integer.toString(clientDatabaseId)));
+
+        executeCommand(command).complete();
+    }
+
     public void channelAddPermission(int channelId, Permission... permission)
             throws IOException, TimeoutException, ExecutionException, InterruptedException {
         MultiCommand command = new MultiCommand(
@@ -870,7 +930,8 @@ public class LocalTeamspeakClientSocket
                 Arrays.stream(permission).map(x ->
                         new SingleCommand("channeladdperm", ProtocolRole.CLIENT, // name is redundant here
                                 new CommandSingleParameter("permsid", x.getName()),
-                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue())),
+                                new CommandSingleParameter("permskip", Integer.toString(x.isNegated() ? 1 : 0))
                         )).collect(Collectors.toList()
                 ));
 
@@ -887,7 +948,8 @@ public class LocalTeamspeakClientSocket
                 Arrays.stream(permission).map(x ->
                         new SingleCommand("channelclientaddperm", ProtocolRole.CLIENT, // name is redundant here
                                 new CommandSingleParameter("permsid", x.getName()),
-                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue())),
+                                new CommandSingleParameter("permskip", Integer.toString(x.isNegated() ? 1 : 0))
                         )).collect(Collectors.toList()
                 ));
 
@@ -905,7 +967,8 @@ public class LocalTeamspeakClientSocket
                 Arrays.stream(permission).map(x ->
                         new SingleCommand("channeldelperm", ProtocolRole.CLIENT, // name is redundant here
                                 new CommandSingleParameter("permsid", x.getName()),
-                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue()))
+                                new CommandSingleParameter("permvalue", Integer.toString(x.getValue())),
+                                new CommandSingleParameter("permnegated", Integer.toString(x.isNegated() ? 1 : 0))
                         )).collect(Collectors.toList()
                 ));
 

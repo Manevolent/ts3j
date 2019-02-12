@@ -26,6 +26,8 @@ package com.github.manevolent.ts3j.api;
  * #L%
  */
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -42,6 +44,14 @@ public class Permission extends Wrapper {
 	public Permission(Map<String, String> map) {
 		super(map);
 	}
+
+    public Permission(String id, int value, boolean negated) {
+        super(createPermissionMap(id, value, negated));
+    }
+
+    public Permission(String id, int value) {
+        this(id, value, false);
+    }
 
 	/**
 	 * Gets the name of this permission.
@@ -107,4 +117,11 @@ public class Permission extends Wrapper {
 		return getBoolean("permskip");
 	}
 
+	private static Map<String, String> createPermissionMap(String id, int value, boolean negated) {
+	    Map<String, String> map = new LinkedHashMap<>();
+	    map.put("permsid", id);
+	    map.put("permvalue", Integer.toString(value));
+        map.put("permnegated", Integer.toString(negated ? 1 : 0));
+	    return Collections.unmodifiableMap(map);
+    }
 }
