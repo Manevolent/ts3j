@@ -27,8 +27,6 @@ public class ServerConnectionTest  {
             );
             client.getChannels().get().forEach(x -> System.err.println(x.getTopic()));
 
-            client.clientListPermission(2);
-
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
             client.subscribeAll();
