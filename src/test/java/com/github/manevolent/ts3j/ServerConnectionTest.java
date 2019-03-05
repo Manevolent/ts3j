@@ -1,9 +1,11 @@
 package com.github.manevolent.ts3j;
-;
+
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
+
+import java.io.File;
 
 import static org.junit.Assert.assertEquals;
 
@@ -11,7 +13,7 @@ public class ServerConnectionTest  {
     public static void main(String[] args) throws Exception {
         Ts3Debugging.setEnabled(true);
 
-        LocalIdentity identity = LocalIdentity.generateNew(10);
+        LocalIdentity identity = LocalIdentity.read(new File("ident.ini"));
 
         LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
         client.setIdentity(identity);
@@ -23,6 +25,7 @@ public class ServerConnectionTest  {
                     "teamlixo.net",
                     10000L
             );
+            client.getChannels().get().forEach(x -> System.err.println(x.getTopic()));
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
