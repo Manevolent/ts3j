@@ -29,6 +29,8 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
+            client.setDescription("Heyo");
+
             client.subscribeAll();
 
             Thread.sleep(100000);

@@ -839,6 +839,42 @@ public class LocalTeamspeakClientSocket
         return executeCommand(banCommand, command -> new Ban(command.toMap())).get();
     }
 
+    public void setDescription(String description)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        setClientDescription(getClientId(), description);
+    }
+
+    public void setClientDescription(Client client, String description)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        setClientDescription(client.getId(), description);
+    }
+
+    public void setClientDescription(int clid, String description)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        editClient(clid, Collections.singletonMap("client_description", description));
+    }
+
+    public void editClient(Client client, Map<String, String> properties)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        editClient(client.getId(), properties);
+    }
+
+    public void editClient(int clid, Map<String, String> properties)
+            throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
+        MultiCommand command = new MultiCommand(
+                "clientedit",
+                ProtocolRole.CLIENT,
+                properties.entrySet().stream().map(x ->
+                        new SingleCommand("clientedit", ProtocolRole.CLIENT, // name is redundant here
+                                new CommandSingleParameter(x.getKey(), x.getValue())
+                        )).collect(Collectors.toList()
+                ));
+
+        command.add(new CommandSingleParameter("clid", Integer.toString(clid)));
+
+        executeCommand(command).complete();
+    }
+
     public Iterable<Ban> banClient(Client client, Integer timeInSeconds, String reason)
             throws InterruptedException, ExecutionException, TimeoutException, CommandException, IOException {
         return banClient(client.getId(), timeInSeconds, reason);
