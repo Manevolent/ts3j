@@ -887,7 +887,7 @@ public class LocalTeamspeakClientSocket
     */
 
     public void clientAddPermission(int clientDatabaseId, Permission... permission)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "clientaddperm",
                 ProtocolRole.CLIENT,
@@ -905,7 +905,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void clientDeletePermission(int clientDatabaseId, Permission... permission)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "clientdelperm",
                 ProtocolRole.CLIENT,
@@ -923,7 +923,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void channelAddPermission(int channelId, Permission... permission)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "channeladdperm",
                 ProtocolRole.CLIENT,
@@ -941,7 +941,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void channelClientAddPermission(int channelId, int clientDatabaseId, Permission... permission)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "channelclientaddperm",
                 ProtocolRole.CLIENT,
@@ -960,7 +960,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void channelClientDeletePermission(int channelId, int clientDatabaseId, Permission... permission)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "channeldelperm",
                 ProtocolRole.CLIENT,
@@ -1008,7 +1008,7 @@ public class LocalTeamspeakClientSocket
      specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendServerMessage(String message)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("targetmode", Integer.toString(3)));
@@ -1023,7 +1023,7 @@ public class LocalTeamspeakClientSocket
      specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendChannelMessage(int channelId, String message)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("targetmode", Integer.toString(2)));
@@ -1038,7 +1038,7 @@ public class LocalTeamspeakClientSocket
      specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendPrivateMessage(int clientId, String message)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("sendtextmessage", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("targetmode", Integer.toString(1)));
@@ -1054,7 +1054,7 @@ public class LocalTeamspeakClientSocket
      channel has no password, the parameter can be omitted.
      */
     public void clientMove(int clientId, int channelId, String password)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("clientmove", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
@@ -1065,7 +1065,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void joinChannel(int channelId, String password)
-            throws InterruptedException, ExecutionException, TimeoutException, IOException {
+            throws InterruptedException, TimeoutException, IOException, CommandException {
         clientMove(getClientId(), channelId, password);
     }
 
@@ -1075,7 +1075,7 @@ public class LocalTeamspeakClientSocket
      channel has no password, the parameter can be omitted.
      */
     public Iterable<Channel> listChannels()
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("channellist", ProtocolRole.CLIENT);
 
         return executeCommand(command, x -> new Channel(x.toMap())).get();
@@ -1087,14 +1087,14 @@ public class LocalTeamspeakClientSocket
      channel has no password, the parameter can be omitted.
      */
     public Iterable<Client> listClients()
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("clientlist", ProtocolRole.CLIENT);
 
         return executeCommand(command, x -> new Client(x.toMap())).get();
     }
 
     public void serverGroupAddClient(int groupId, int clientDatabaseId)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("servergroupaddclient", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
@@ -1104,7 +1104,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public void serverGroupRemoveClient(int groupId, int clientDatabaseId)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("servergroupdelclient", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("sgid", Integer.toString(groupId)));
@@ -1119,7 +1119,7 @@ public class LocalTeamspeakClientSocket
      channel has no password, the parameter can be omitted.
      */
     public void clientPoke(int clientId, String message)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("clientpoke", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("clid", Integer.toString(clientId)));
@@ -1135,7 +1135,7 @@ public class LocalTeamspeakClientSocket
      and may only have a maximum of 40 characters.
      */
     public void kick(Collection<Integer> clientIds, String message)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         MultiCommand command = new MultiCommand(
                 "clientkick",
                 ProtocolRole.CLIENT,
@@ -1151,13 +1151,13 @@ public class LocalTeamspeakClientSocket
         executeCommand(command).complete();
     }
 
-    public void subscribeAll() throws IOException, TimeoutException, ExecutionException, InterruptedException {
+    public void subscribeAll() throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand("channelsubscribeall", ProtocolRole.CLIENT);
         executeCommand(command).get();
     }
 
     public Client getClientInfo(int clientId)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand(
                 "clientinfo",
                 ProtocolRole.CLIENT,
@@ -1178,7 +1178,7 @@ public class LocalTeamspeakClientSocket
     }
 
     public Channel getChannelInfo(int channelId)
-            throws IOException, TimeoutException, ExecutionException, InterruptedException {
+            throws IOException, TimeoutException, InterruptedException, CommandException {
         Command command = new SingleCommand(
                 "channelinfo",
                 ProtocolRole.CLIENT,

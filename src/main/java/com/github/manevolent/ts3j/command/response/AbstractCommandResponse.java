@@ -1,5 +1,6 @@
 package com.github.manevolent.ts3j.command.response;
 
+import com.github.manevolent.ts3j.command.CommandException;
 import com.github.manevolent.ts3j.command.MultiCommand;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
@@ -22,21 +23,40 @@ public abstract class AbstractCommandResponse<T> implements CommandResponse<T> {
      * Completes the command without any post-mapping processing, lowering overhead.
      */
     @Override
-    public void complete()
-            throws ExecutionException, InterruptedException {
-        future.get();
+    public void complete() throws InterruptedException, CommandException {
+        try {
+            future.get();
+        } catch (ExecutionException ex) {
+            if (ex.getCause() != null && ex.getCause() instanceof CommandException)
+                throw (CommandException) ex.getCause();
+            else
+                throw new RuntimeException(ex);
+        }
     }
 
     @Override
     public T get(long timeoutMillis)
-            throws TimeoutException, ExecutionException, InterruptedException {
-        return map(future.get(timeoutMillis, TimeUnit.MILLISECONDS));
+            throws TimeoutException, InterruptedException, CommandException {
+        try {
+            return map(future.get(timeoutMillis, TimeUnit.MILLISECONDS));
+        } catch (ExecutionException ex) {
+            if (ex.getCause() != null && ex.getCause() instanceof CommandException)
+                throw (CommandException) ex.getCause();
+            else
+                throw new RuntimeException(ex);
+        }
     }
 
     @Override
-    public T get()
-            throws ExecutionException, InterruptedException {
-        return map(future.get());
+    public T get() throws InterruptedException, CommandException {
+        try {
+            return map(future.get());
+        } catch (ExecutionException ex) {
+            if (ex.getCause() != null && ex.getCause() instanceof CommandException)
+                throw (CommandException) ex.getCause();
+            else
+                throw new RuntimeException(ex);
+        }
     }
 
     public void completeSuccess(Iterable<MultiCommand> commands) {

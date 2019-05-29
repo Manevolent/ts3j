@@ -13,7 +13,7 @@ public class ServerConnectionTest  {
     public static void main(String[] args) throws Exception {
         Ts3Debugging.setEnabled(true);
 
-        LocalIdentity identity = LocalIdentity.read(new File("ident.ini"));
+        LocalIdentity identity = LocalIdentity.generateNew(10);
 
         LocalTeamspeakClientSocket client = new LocalTeamspeakClientSocket();
         client.setIdentity(identity);
