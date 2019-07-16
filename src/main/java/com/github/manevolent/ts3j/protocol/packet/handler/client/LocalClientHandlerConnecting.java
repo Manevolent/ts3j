@@ -24,7 +24,7 @@ import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
 public class LocalClientHandlerConnecting extends LocalClientHandler {
-    private static final byte[] INIT1_VERSION = new byte[] { 0x09, (byte)0x83, (byte)0x8C, (byte)0xCF };
+    private static final byte[] INIT1_VERSION = new byte[]{0x09, (byte) 0x83, (byte) 0x8C, (byte) 0xCF};
 
     private byte[] randomBytes;
     private byte[] alphaBytes;
@@ -66,10 +66,10 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
             switch (init1.getStep().getNumber()) {
                 case 1:
-                    PacketBody8Init1.Step1 serverReplyStep1 = (PacketBody8Init1.Step1)init1.getStep();
+                    PacketBody8Init1.Step1 serverReplyStep1 = (PacketBody8Init1.Step1) init1.getStep();
 
                     // Check nonce.  It's received backwards, so walk backwards over the array received
-                    for (int i = 0; i < 4; i ++) {
+                    for (int i = 0; i < 4; i++) {
                         if (randomBytes[3 - i] != serverReplyStep1.getA0reversed()[i]) {
                             Ts3Debugging.debug("[WARNING] random byte mismatch!");
                             break;
@@ -84,7 +84,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     step = step2;
                     break;
                 case 3:
-                    PacketBody8Init1.Step3 serverReplyStep3 = (PacketBody8Init1.Step3)init1.getStep();
+                    PacketBody8Init1.Step3 serverReplyStep3 = (PacketBody8Init1.Step3) init1.getStep();
 
                     // Calculate 'y'
                     // which is the result of x ^ (2 ^ level) % n as an unsigned
@@ -131,8 +131,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
                     initiv.add(
                             new CommandSingleParameter(
-                                "ip",
-                                getClient().getOption("client.hostname", String.class)
+                                    "ip",
+                                    getClient().getOption("client.hostname", String.class)
                             )
                     );
 
@@ -228,11 +228,22 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 "clientinit",
                 ProtocolRole.CLIENT,
                 new CommandSingleParameter("client_nickname", getClient().getNickname()),
-                new CommandSingleParameter("client_version", "3.?.? [Build: 5680278000]"),
-                new CommandSingleParameter("client_platform", "Windows"),
+                new CommandSingleParameter(
+                        "client_version",
+                        getClient().getOption("client.version_string", String.class) != null ?
+                                getClient().getOption("client.version_string", String.class) :
+                                "3.?.? [Build: 5680278000]"
+                ),
+                new CommandSingleParameter("client_platform",
+                        getClient().getOption("client.version_platform", String.class) != null ?
+                                getClient().getOption("client.version_platform", String.class) :
+                                "Windows"
+                ),
                 new CommandSingleParameter(
                         "client_version_sign",
-                        "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
+                        getClient().getOption("client.version_sign", String.class) != null ?
+                                getClient().getOption("client.version_sign", String.class) :
+                                "DX5NIYLvfJEUjuIbCidnoeozxIDRRkpq3I9vVMBmE9L2qnekOoBzSenkzsg2lC9CMv8K5hkEzhr2TYUYSwUXCg=="
                 ),
                 new CommandSingleParameter("client_input_hardware", "1"),
                 new CommandSingleParameter("client_output_hardware", "1"),

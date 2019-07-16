@@ -60,9 +60,9 @@ public class LocalTeamspeakClientSocket
 
     /**
      * The internal command buffer
-     *
+     * <p>
      * This buffer ascends through specific command codes, which are calculated using:
-     *
+     * <p>
      * get
      */
     private Map<Integer, ClientCommandResponse> awaitingCommands = new ConcurrentHashMap<>();
@@ -159,7 +159,7 @@ public class LocalTeamspeakClientSocket
      * Enables or disables event callback multi-threading.  This is dangerous.  If this is enabled, events can be
      * processed out-of-order.  It is suggested you use your own threading system for particular events you feel safe
      * parallelling, such as chat messages.
-     *
+     * <p>
      * This is not enabled by default.
      *
      * @param enabled Event simultaneous (parallel) processing enabled
@@ -307,8 +307,9 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Initiates a connection to a server
+     *
      * @param hostname Hostname to contact
-     * @param timeout timeout, in milliseconds, to complete a connection.
+     * @param timeout  timeout, in milliseconds, to complete a connection.
      */
     public void connect(String hostname, long timeout) throws IOException, TimeoutException {
         connect(hostname, null, timeout);
@@ -316,9 +317,10 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Initiates a connection to a server
+     *
      * @param hostname Hostname to contact
      * @param password server password (may be null)
-     * @param timeout timeout, in milliseconds, to complete a connection.
+     * @param timeout  timeout, in milliseconds, to complete a connection.
      */
     public void connect(String hostname, String password, long timeout) throws
             IOException,
@@ -338,9 +340,10 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Initiates a connection to a server
-     * @param remote remote sever to contact
+     *
+     * @param remote   remote sever to contact
      * @param password server password (may be null)
-     * @param timeout timeout, in milliseconds, to complete a connection.
+     * @param timeout  timeout, in milliseconds, to complete a connection.
      */
     public void connect(InetSocketAddress remote, String password, long timeout)
             throws IOException, TimeoutException {
@@ -457,9 +460,10 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Executes a command.
+     *
      * @param command Command to execute.
      * @return Future, command response object.
-     * @throws IOException if there is a connectivity-level exception.
+     * @throws IOException      if there is a connectivity-level exception.
      * @throws TimeoutException if command send times out.
      */
     public CommandResponse<Iterable<SingleCommand>> executeCommand(Command command)
@@ -596,7 +600,7 @@ public class LocalTeamspeakClientSocket
                 try {
                     writePacket(voice);
 
-                    flaggedPackets --;
+                    flaggedPackets--;
                     wasSendingAudio = true;
                 } catch (Exception e) {
                     // All we are really concerned about here is a disconnection event, in which case the loop
@@ -614,7 +618,7 @@ public class LocalTeamspeakClientSocket
 
                     // reset decoder flag
                     flaggedPackets = 5;
-                    sessionId ++;
+                    sessionId++;
 
                     if (sessionId >= 8)
                         sessionId = 1;
@@ -649,7 +653,7 @@ public class LocalTeamspeakClientSocket
 
         @Override
         public void process(AbstractTeamspeakClientSocket client,
-                             MultiCommand multiCommand)
+                            MultiCommand multiCommand)
                 throws CommandProcessException {
             if (multiCommand.getName().equalsIgnoreCase("error"))
                 try {
@@ -1016,14 +1020,14 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Displays a list of clients that are in the channel specified by the cid
-     parameter. Included information is the clientID, client database id, nickname,
-     channelID and client type.
-     Please take note that you can only view clients in channels that you are
-     currently subscribed to.
-
-     Here is a list of the additional display paramters you will receive for
-     each of the possible modifier parameters.
-
+     * parameter. Included information is the clientID, client database id, nickname,
+     * channelID and client type.
+     * Please take note that you can only view clients in channels that you are
+     * currently subscribed to.
+     * <p>
+     * Here is a list of the additional display paramters you will receive for
+     * each of the possible modifier parameters.
+     *
      * @param channelId channel ID to look at
      * @return list of channel clients
      * @throws IOException
@@ -1041,7 +1045,7 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Sends a text message a specified target. The type of the target is determined by targetmode while target
-     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     * specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendServerMessage(String message)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1056,7 +1060,7 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Sends a text message a specified target. The type of the target is determined by targetmode while target
-     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     * specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendChannelMessage(int channelId, String message)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1071,7 +1075,7 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Sends a text message a specified target. The type of the target is determined by targetmode while target
-     specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
+     * specifies the ID of the recipient, whether it be a virtual server, a channel or a client.
      */
     public void sendPrivateMessage(int clientId, String message)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1086,8 +1090,8 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Moves one or more clients specified with clid to the channel with ID cid. If
-     the target channel has a password, it needs to be specified with cpw. If the
-     channel has no password, the parameter can be omitted.
+     * the target channel has a password, it needs to be specified with cpw. If the
+     * channel has no password, the parameter can be omitted.
      */
     public void clientMove(int clientId, int channelId, String password)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1107,8 +1111,8 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Moves one or more clients specified with clid to the channel with ID cid. If
-     the target channel has a password, it needs to be specified with cpw. If the
-     channel has no password, the parameter can be omitted.
+     * the target channel has a password, it needs to be specified with cpw. If the
+     * channel has no password, the parameter can be omitted.
      */
     public Iterable<Channel> listChannels()
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1119,8 +1123,8 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Moves one or more clients specified with clid to the channel with ID cid. If
-     the target channel has a password, it needs to be specified with cpw. If the
-     channel has no password, the parameter can be omitted.
+     * the target channel has a password, it needs to be specified with cpw. If the
+     * channel has no password, the parameter can be omitted.
      */
     public Iterable<Client> listClients()
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1151,8 +1155,8 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Moves one or more clients specified with clid to the channel with ID cid. If
-     the target channel has a password, it needs to be specified with cpw. If the
-     channel has no password, the parameter can be omitted.
+     * the target channel has a password, it needs to be specified with cpw. If the
+     * channel has no password, the parameter can be omitted.
      */
     public void clientPoke(int clientId, String message)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1166,9 +1170,9 @@ public class LocalTeamspeakClientSocket
 
     /**
      * Kicks one or more clients specified with clid from their currently joined
-     channel or from the server, depending on reasonid. The reasonmsg parameter
-     specifies a text message sent to the kicked clients. This parameter is optional
-     and may only have a maximum of 40 characters.
+     * channel or from the server, depending on reasonid. The reasonmsg parameter
+     * specifies a text message sent to the kicked clients. This parameter is optional
+     * and may only have a maximum of 40 characters.
      */
     public void kick(Collection<Integer> clientIds, String message)
             throws IOException, TimeoutException, InterruptedException, CommandException {
@@ -1191,6 +1195,13 @@ public class LocalTeamspeakClientSocket
         Command command = new SingleCommand("channelsubscribeall", ProtocolRole.CLIENT);
         executeCommand(command).get();
     }
+
+    public void setClientVersion(String platform, String version, String sign) {
+        setOption("client.version_platform", platform);
+        setOption("client.version_string", version);
+        setOption("client.version_sign", sign);
+    }
+
 
     public Client getClientInfo(int clientId)
             throws IOException, TimeoutException, InterruptedException, CommandException {
