@@ -12,6 +12,10 @@ A standalone proof-of-concept was created to wrap ts3j: https://github.com/Manev
 
 https://github.com/Manevolent/ffmpeg4j
 
+# A note about Teamspeak 5
+
+I am watching the development of Teamspeak 5, and may end up supporting it depending on my availability at the time.  From what I have heard so far, TS5 will be backwards-compatible to some degree, and interoperability will exist.  Depending of the degree of protocol compatibility, TS3j may not need to be changed.  Either way, I still actively use Teamspeak3 and will plan to at least attempt to support TS5 when it is released, so at least music bots will continue to be supported on this platform.
+
 # Maven
 
 If you want the latest `-SNAPSHOT`:
