@@ -31,8 +31,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.SocketTimeoutException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
+import java.nio.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -568,13 +567,10 @@ public abstract class AbstractTeamspeakClientSocket
         }
 
         // Fragment handling
+        Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
         if (networkPacket.getHeader().getType().isSplittable()) {
-            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
-
             packet.setBody(new PacketBodyFragment(networkPacket.getHeader().getType(), getRole().getIn()));
         } else {
-            Ts3Debugging.debug("[PROTOCOL] READ " + networkPacket.getHeader().getType().name());
-
             if (packet.getHeader().getPacketFlag(HeaderFlag.COMPRESSED) &&
                     packet.getHeader().getType().isCompressible())
                 packet.setBody(new PacketBodyCompressed(networkPacket.getHeader().getType(), getRole().getIn()));

@@ -212,8 +212,8 @@ public class PacketBody8Init1 extends PacketBody {
 
         @Override
         public void read(ByteBuffer byteBuffer) {
-            byteBuffer.get(serverStuff);
-            byteBuffer.get(a0reversed);
+            byteBuffer.get(serverStuff, 0, Math.min(byteBuffer.remaining(), serverStuff.length));
+            byteBuffer.get(a0reversed, 0, Math.min(byteBuffer.remaining(), a0reversed.length));
         }
 
         @Override
@@ -235,7 +235,6 @@ public class PacketBody8Init1 extends PacketBody {
         public Step2() {
             super((byte) 2, ProtocolRole.CLIENT);
         }
-
 
         public byte[] getA0reversed() {
             return a0reversed;
@@ -263,6 +262,7 @@ public class PacketBody8Init1 extends PacketBody {
 
         @Override
         public void write(ByteBuffer byteBuffer) {
+
             byteBuffer.put(serverStuff);
             byteBuffer.put(a0reversed);
         }

@@ -24,7 +24,7 @@ import java.util.Random;
 import java.util.concurrent.TimeoutException;
 
 public class LocalClientHandlerConnecting extends LocalClientHandler {
-    private static final byte[] INIT1_VERSION = new byte[]{0x09, (byte) 0x83, (byte) 0x8C, (byte) 0xCF};
+    private static final byte[] INIT1_VERSION = new byte[]{0x0C, (byte)0xFF, (byte)0xD2, (byte)0xFE};
 
     private byte[] randomBytes;
     private byte[] alphaBytes;
@@ -48,6 +48,8 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         packet.setStep(step);
 
         sendInit1(packet);
+
+        getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, createInitIv()));
     }
 
     private void sendInit1(PacketBody8Init1 packet) throws IOException, TimeoutException {
@@ -118,29 +120,15 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                     step4.setY(y);
                     step4.setServerStuff(serverReplyStep3.getServerStuff());
 
-                    alphaBytes = new byte[10];
-                    new Random().nextBytes(alphaBytes);
-
-                    SingleCommand initiv = new SingleCommand("clientinitiv", ProtocolRole.CLIENT);
-
-                    initiv.add(new CommandSingleParameter("alpha", Base64.getEncoder().encodeToString(alphaBytes)));
-
-                    initiv.add(new CommandSingleParameter("omega", getClient().getIdentity().getPublicKeyString()));
-
-                    initiv.add(new CommandSingleParameter("ot", "1")); // constant, set to 1
-
-                    initiv.add(
-                            new CommandSingleParameter(
-                                    "ip",
-                                    getClient().getOption("client.hostname", String.class)
-                            )
-                    );
-
-                    step4.setClientIVcommand(initiv.build().getBytes(Charset.forName("UTF8")));
-
+                    step4.setClientIVcommand(createInitIv().build().getBytes(Charset.forName("UTF8")));
                     step = step4;
                     break;
                 case 127:
+                    try {
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                     onAssigned();
                     return;
                 default:
@@ -221,6 +209,26 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
                 throw new IOException("Unknown Init command: " + command.getName());
             }
         }
+    }
+
+    private SingleCommand createInitIv() {
+        alphaBytes = new byte[10];
+        new Random().nextBytes(alphaBytes);
+
+        SingleCommand initiv = new SingleCommand("clientinitiv", ProtocolRole.CLIENT);
+        initiv.add(new CommandSingleParameter("alpha", Base64.getEncoder().encodeToString(alphaBytes)));
+        initiv.add(new CommandSingleParameter("omega", getClient().getIdentity().getPublicKeyString()));
+        initiv.add(new CommandSingleParameter("ot", "1")); // constant, set to 1
+
+        Random r = new Random();
+        initiv.add(
+                new CommandSingleParameter(
+                        "ip",
+                        r.nextInt(255) + "." + r.nextInt(255) + "." + r.nextInt(255) + "." +r.nextInt(255)
+                )
+        );
+
+        return initiv;
     }
 
     private void sendClientInit() throws IOException, TimeoutException {
