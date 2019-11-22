@@ -25,9 +25,7 @@ import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHand
 import com.github.manevolent.ts3j.protocol.packet.handler.client.LocalClientHandlerRetrievingData;
 import com.github.manevolent.ts3j.protocol.packet.statistics.PacketStatistics;
 import com.github.manevolent.ts3j.protocol.packet.transformation.InitPacketTransformation;
-import com.github.manevolent.ts3j.util.HighPrecisionTimer;
-import com.github.manevolent.ts3j.util.Ts3Debugging;
-import com.github.manevolent.ts3j.util.Pair;
+import com.github.manevolent.ts3j.util.*;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -448,6 +446,8 @@ public class LocalTeamspeakClientSocket
 
             if (awaitingCommandProcessor != null)
                 awaitingCommandProcessor.process(client, singleCommand);
+            else
+                Ts3Debugging.info("Dropping command, no awaiting processor: " + singleCommand.toString());
         }
     }
 
@@ -1098,7 +1098,7 @@ public class LocalTeamspeakClientSocket
         Command command = new SingleCommand("clientmove", ProtocolRole.CLIENT);
 
         command.add(new CommandSingleParameter("cid", Integer.toString(channelId)));
-        if (password != null) command.add(new CommandSingleParameter("cpw", Integer.toString(channelId)));
+        if (password != null) command.add(new CommandSingleParameter("cpw", Ts3Crypt.hashPassword(password)));
         command.add(new CommandSingleParameter("clid", Integer.toString(clientId)));
 
         executeCommand(command).complete();

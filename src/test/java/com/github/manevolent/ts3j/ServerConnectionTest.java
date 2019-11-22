@@ -1,11 +1,14 @@
 package com.github.manevolent.ts3j;
 
+import com.github.manevolent.ts3j.command.*;
+import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
 import com.github.manevolent.ts3j.protocol.socket.client.LocalTeamspeakClientSocket;
 import com.github.manevolent.ts3j.util.Ts3Debugging;
 
-import java.io.File;
+import java.io.*;
+import java.util.concurrent.*;
 
 import static org.junit.Assert.assertEquals;
 
@@ -25,9 +28,10 @@ public class ServerConnectionTest  {
                     "teamlixo.net",
                     10000L
             );
-            client.getChannels().get().forEach(x -> System.err.println(x.getTopic()));
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
+
+            Thread.sleep(1000);
 
             client.setDescription("Heyo");
 

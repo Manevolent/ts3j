@@ -594,7 +594,6 @@ public abstract class AbstractTeamspeakClientSocket
             packet.readBody(packetBuffer);
         }
 
-
         PacketKind kind = networkPacket.getHeader().getType().getKind();
         if (kind != null)
             packetStatistics
@@ -615,8 +614,7 @@ public abstract class AbstractTeamspeakClientSocket
         while (isReading()) {
             // De-spool spooled-up packets
             if (handlerBacklog.size() > 0) {
-                Packet packet = handlerBacklog.remove(0);
-                return packet;
+                return handlerBacklog.remove(0);
             }
 
             try {
@@ -780,7 +778,8 @@ public abstract class AbstractTeamspeakClientSocket
                     Packet reassembled;
                     while ((reassembled = reassembly.next()) != null) {
                         Ts3Debugging.debug("[PROTOCOL] REASSEMBLE " + reassembled.getHeader().getType().name() +
-                                " id=" + reassembled.getHeader().getPacketId() + " len=" + reassembled.getSize());
+                                " id=" + reassembled.getHeader().getPacketId() + " len=" + reassembled.getSize() +
+                                        " bodyType=" + reassembled.getBody().getClass().getSimpleName());
                         handlerBacklog.add(reassembled);
                     }
                 } else {
@@ -934,6 +933,7 @@ public abstract class AbstractTeamspeakClientSocket
                     }
                 }
             } catch (Throwable e) {
+                Ts3Debugging.debug("Problem reading packet", e);
                 getExceptionHandler().accept(e);
             }
         }

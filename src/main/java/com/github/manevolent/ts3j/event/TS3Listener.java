@@ -55,4 +55,6 @@ public interface TS3Listener {
     default void onPermissionList(PermissionListEvent e) {}
     default void onConnected(ConnectedEvent e) {}
     default void onClientChatClosed(ClientChatClosedEvent e) {}
+    default void onClientPermHints(ClientPermHintsEvent e) {}
+    default void onChannelPermHints(ChannelPermHintsEvent e) {}
 }

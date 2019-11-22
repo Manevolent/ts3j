@@ -23,8 +23,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.*;
 import java.security.*;
-import java.util.List;
+import java.util.*;
 
 public final class Ts3Crypt {
     static {
@@ -310,6 +311,10 @@ public final class Ts3Crypt {
         } else throw new IllegalArgumentException("invalid DER sequence");
 
         return new LocalIdentity(publicKey, privateKey);
+    }
+
+    public static String hashPassword(String password) {
+        return Base64.getEncoder().encodeToString(hash128(password.getBytes(StandardCharsets.UTF_8)));
     }
 
     public static final class SecureChannelParameters {
