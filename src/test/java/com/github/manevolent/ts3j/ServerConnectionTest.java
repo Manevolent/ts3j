@@ -1,6 +1,8 @@
 package com.github.manevolent.ts3j;
 
+import com.github.manevolent.ts3j.audio.*;
 import com.github.manevolent.ts3j.command.*;
+import com.github.manevolent.ts3j.enums.*;
 import com.github.manevolent.ts3j.event.*;
 import com.github.manevolent.ts3j.identity.LocalIdentity;
 import com.github.manevolent.ts3j.protocol.client.ClientConnectionState;
@@ -22,6 +24,19 @@ public class ServerConnectionTest  {
         client.setIdentity(identity);
         client.setNickname(ServerConnectionTest.class.getSimpleName());
         client.setHWID("TestTestTest");
+        client.setMicrophone(new Microphone() {
+            @Override public boolean isReady() {
+                return false;
+            }
+
+            @Override public CodecType getCodec() {
+                return null;
+            }
+
+            @Override public byte[] provide() {
+                return new byte[0];
+            }
+        });
 
         try {
             client.connect(
@@ -31,19 +46,11 @@ public class ServerConnectionTest  {
 
             assertEquals(client.getState(), ClientConnectionState.CONNECTED);
 
-            Thread.sleep(1000);
-
-            client.setDescription("Heyo");
-
-            client.subscribeAll();
-
-            Thread.sleep(100000);
-
             client.disconnect("BYE");
         } catch (Exception ex) {
             ex.printStackTrace();
+        } finally {
+            client.close();
         }
-
-        Thread.sleep(3000L);
     }
 }

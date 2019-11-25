@@ -147,12 +147,12 @@ public abstract class AbstractTeamspeakClientSocket
     protected abstract Class<? extends PacketHandler> getHandlerClass(ClientConnectionState state);
 
     protected void start() {
-        Thread networkThread = new Thread(networkReader);
+        networkThread = new Thread(networkReader);
         networkThread.setName("TS3J/NetworkReader/" + networkThread.getId());
         networkThread.setDaemon(true);
         networkThread.start();
 
-        Thread handlerThread = new Thread(networkHandler);
+        handlerThread = new Thread(networkHandler);
         handlerThread.setName("TS3J/NetworkHandler/" + handlerThread.getId());
         handlerThread.setDaemon(true);
         handlerThread.start();
@@ -177,13 +177,14 @@ public abstract class AbstractTeamspeakClientSocket
                 Ts3Debugging.debug("State changing: " + state.name());
 
                 boolean initialState = this.connectionState == null;
-                boolean wasDisconnected = this.connectionState == ClientConnectionState.DISCONNECTED;
 
-                if (wasDisconnected) setReading(true);
+                if (state == ClientConnectionState.CONNECTING)
+                    setReading(true);
 
                 this.connectionState = state;
 
-                if (state == ClientConnectionState.DISCONNECTED) setReading(false);
+                if (state == ClientConnectionState.DISCONNECTED)
+                    setReading(false);
 
                 connectionStateLock.notifyAll();
 
@@ -855,7 +856,7 @@ public abstract class AbstractTeamspeakClientSocket
         return reading;
     }
 
-    protected void setReading(boolean b) {
+    protected boolean setReading(boolean b) {
         if (this.reading != b) {
             this.reading = b;
 
@@ -865,7 +866,11 @@ public abstract class AbstractTeamspeakClientSocket
             } else {
                 start();
             }
+
+            return true;
         }
+
+        return false;
     }
 
     public int getClientId() {
@@ -945,14 +950,9 @@ public abstract class AbstractTeamspeakClientSocket
             while (isReading()) {
                 try {
                     readQueue.put(readPacket());
-                } catch (EOFException e) {
+                } catch (EOFException | InterruptedException e) {
                     break;
                 } catch (Throwable e) {
-                    if (e instanceof InterruptedException) {
-                        Thread.yield();
-                        continue;
-                    }
-
                     exceptionHandler.accept(e);
                     break;
                 }

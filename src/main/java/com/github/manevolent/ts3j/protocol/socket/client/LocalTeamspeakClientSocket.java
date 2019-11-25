@@ -50,7 +50,7 @@ public class LocalTeamspeakClientSocket
     private volatile InetSocketAddress remote;
 
     private Microphone microphone;
-    private Thread microphoneThread;
+    private HighPrecisionTimer microphoneThread;
 
     private List<TS3Listener> listeners = new LinkedList<>();
 
@@ -281,6 +281,9 @@ public class LocalTeamspeakClientSocket
     protected void onConnect() {
         super.onConnect();
 
+        if (microphoneThread != null && !microphoneThread.isAlive())
+            microphoneThread.start();
+
         final ConnectedEvent connectedEvent = new ConnectedEvent(Collections.emptyMap());
         commandExecutionService.submit(() -> listeners.forEach(e -> e.onConnected(connectedEvent)));
     }
@@ -391,15 +394,6 @@ public class LocalTeamspeakClientSocket
             setState(ClientConnectionState.CONNECTING);
 
             waitForState(ClientConnectionState.CONNECTED, timeout);
-
-            microphoneThread = new HighPrecisionTimer(
-                    20,
-                    5F, // up to 100ms of drift/catchup
-                    new MicrophoneTask()
-            );
-
-            microphoneThread.setDaemon(true);
-            microphoneThread.start();
         } catch (TimeoutException e) {
             setState(ClientConnectionState.DISCONNECTED);
 
@@ -407,7 +401,7 @@ public class LocalTeamspeakClientSocket
         } catch (Throwable e) {
             setState(ClientConnectionState.DISCONNECTED);
 
-            throw new IOException(e);
+            throw new IOException("Problem establishing client connection", e);
         }
     }
 
@@ -424,6 +418,7 @@ public class LocalTeamspeakClientSocket
     @Override
     public void close() throws IOException {
         socket.close();
+        commandExecutionService.shutdown();
     }
 
     @Override
@@ -520,11 +515,34 @@ public class LocalTeamspeakClientSocket
         if (this.microphone != microphone) {
             this.microphone = microphone;
 
-            if (microphone == null && microphoneThread != null) {
-                microphoneThread.interrupt();
+            if (microphone != null && microphoneThread == null) {
+                microphoneThread = new HighPrecisionTimer(
+                                20,
+                                5F, // up to 100ms of drift/catchup
+                                new MicrophoneTask()
+                );
+                microphoneThread.setDaemon(true);
+
+                if (getState() != ClientConnectionState.DISCONNECTED)
+                    microphoneThread.start();
+            } else if (microphone == null && microphoneThread != null) {
+                microphoneThread.gracefulStop();
                 microphoneThread = null;
             }
         }
+    }
+
+    @Override
+    protected boolean setReading(boolean reading) {
+        if (super.setReading(reading)) {
+            if (!reading) {
+                if (microphoneThread != null) microphoneThread.gracefulStop();
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
