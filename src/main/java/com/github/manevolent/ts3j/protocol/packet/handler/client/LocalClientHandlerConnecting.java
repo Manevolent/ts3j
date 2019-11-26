@@ -17,6 +17,7 @@ import org.bouncycastle.math.ec.ECPoint;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Base64;
@@ -220,13 +221,9 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
         initiv.add(new CommandSingleParameter("omega", getClient().getIdentity().getPublicKeyString()));
         initiv.add(new CommandSingleParameter("ot", "1")); // constant, set to 1
 
-        Random r = new Random();
-        initiv.add(
-                new CommandSingleParameter(
-                        "ip",
-                        r.nextInt(255) + "." + r.nextInt(255) + "." + r.nextInt(255) + "." +r.nextInt(255)
-                )
-        );
+        InetAddress address = getClient().getRemoteSocketAddress().getAddress();
+        if (address != null)
+            initiv.add(new CommandSingleParameter("ip", address.getHostAddress().substring(1)));
 
         return initiv;
     }

@@ -415,6 +415,10 @@ public class LocalTeamspeakClientSocket
         return (InetSocketAddress) socket.getLocalSocketAddress();
     }
 
+    public InetSocketAddress getRemoteSocketAddress() {
+        return remote;
+    }
+
     @Override
     public void close() throws IOException {
         socket.close();
