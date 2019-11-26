@@ -50,7 +50,7 @@ public class LocalClientHandlerConnecting extends LocalClientHandler {
 
         sendInit1(packet);
 
-        getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, createInitIv()));
+        //getClient().writePacket(new PacketBody2Command(ProtocolRole.CLIENT, createInitIv()));
     }
 
     private void sendInit1(PacketBody8Init1 packet) throws IOException, TimeoutException {
