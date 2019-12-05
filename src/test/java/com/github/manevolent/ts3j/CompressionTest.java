@@ -22,12 +22,12 @@ public class CompressionTest extends TestCase {
 
         for (int i = 0; i < 1024; i ++) {
             r.nextBytes(b);
-            QuickLZ.decompress(QuickLZ.compress(b, 1));
+            QuickLZ.decompress(QuickLZ.compress(b, 1), 600);
         }
 
         for (int i = 0; i < 1024; i ++) {
             r.nextBytes(b);
-            QuickLZ.decompress(QuickLZ.compress(b, 3));
+            QuickLZ.decompress(QuickLZ.compress(b, 3), 600);
         }
      }
 
