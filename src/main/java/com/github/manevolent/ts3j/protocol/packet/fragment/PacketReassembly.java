@@ -92,7 +92,7 @@ public class PacketReassembly {
             reassemblyBuffer.position(0);
 
             if (firstPacket.getHeader().getPacketFlag(HeaderFlag.COMPRESSED))
-                reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array()));
+                reassemblyBuffer = ByteBuffer.wrap(QuickLZ.decompress(reassemblyBuffer.array(), 1024 * 1024));
 
             reassembledPacket.readBody(reassemblyBuffer);
 

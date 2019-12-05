@@ -584,7 +584,7 @@ public abstract class AbstractTeamspeakClientSocket
         if (packet.getBody() instanceof PacketBodyCompressed) {
             Ts3Debugging.debug("[PROTOCOL] DECOMPRESS " + networkPacket.getHeader().getType().name());
 
-            byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed());
+            byte[] decompressed = QuickLZ.decompress(((PacketBodyCompressed) packet.getBody()).getCompressed(), 65535);
 
             packetBuffer = ByteBuffer
                     .wrap(decompressed)

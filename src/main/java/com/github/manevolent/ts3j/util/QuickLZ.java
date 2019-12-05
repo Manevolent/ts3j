@@ -310,7 +310,7 @@ public final class QuickLZ
 			a[i + j] = (byte)(value >>> (j * 8));
 	}
 
-	static public byte[] decompress(byte[] source) throws IOException {
+	static public byte[] decompress(byte[] source, int maximum) throws IOException {
         try {
             int level = (source[0] >>> 2) & 0x3;
 
@@ -318,7 +318,7 @@ public final class QuickLZ
                 throw new IllegalArgumentException("unsupported QuickLZ level: " + level);
 
             int size = (int) sizeDecompressed(source);
-            if (size > 65536)
+            if (size > maximum)
                 throw new IllegalArgumentException("decompression too large: " + size);
 
             int src = headerLen(source);
