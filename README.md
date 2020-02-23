@@ -14,9 +14,7 @@ https://github.com/Manevolent/ffmpeg4j
 
 # A note about Teamspeak 5
 
-I am watching the development of Teamspeak 5, and may end up supporting it depending on my availability at the time.  From what I have heard so far, TS5 will be backwards-compatible to some degree, and interoperability will exist.  Depending of the degree of protocol compatibility, TS3j may not need to be changed.
-
-I still actively use Teamspeak3 almost every day (and an accompanying ts3j bot) and will plan to at least attempt to support TS5 when it is released, so at least music bots will continue to be supported on this platform.
+I don't believe TS3j will need any major adjustments to work in a future Teamspeak5 world, based on what I have been able to get my hands on with TS5.  I've verified that TS3j does in fact work alongside TS5 clients, all connected to a "TS3" server.  There may be missing features that TS5 brings to the table, but those can be solved through issues and enhancement requests as they are identified.
 
 # Maven
 
