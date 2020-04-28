@@ -1,7 +1,5 @@
 # ts3j
 
-Discord: https://discord.gg/4q9jpCa
-
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
 This project is the network-level API library for the reference implementation of Teamspeak3 for **Manebot**, my multiplatform chatbot that you can extend with your own plugins.  GitHub: https://github.com/Manevolent/manebot-ts3
