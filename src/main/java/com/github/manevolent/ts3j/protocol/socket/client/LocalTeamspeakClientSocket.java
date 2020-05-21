@@ -433,9 +433,13 @@ public class LocalTeamspeakClientSocket
         if (processor != null) {
             processor.process(client, singleCommand);
         } else if (singleCommand.getName().startsWith("notify")) {
-            TS3Event event = TS3Event.createEvent(singleCommand);
+            try {
+                TS3Event event = TS3Event.createEvent(singleCommand);
+                commandExecutionService.submit(() -> listeners.forEach(event::fire));
+            } catch (IllegalArgumentException exception) {
+                exception.printStackTrace();
+            }
 
-            commandExecutionService.submit(() -> listeners.forEach(event::fire));
         } else {
             CommandProcessor awaitingCommandProcessor;
 
@@ -521,9 +525,9 @@ public class LocalTeamspeakClientSocket
 
             if (microphone != null && microphoneThread == null) {
                 microphoneThread = new HighPrecisionTimer(
-                                20,
-                                5F, // up to 100ms of drift/catchup
-                                new MicrophoneTask()
+                        20,
+                        5F, // up to 100ms of drift/catchup
+                        new MicrophoneTask()
                 );
                 microphoneThread.setDaemon(true);
 
