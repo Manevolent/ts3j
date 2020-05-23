@@ -18,7 +18,7 @@ I don't believe TS3j will need any major adjustments to work in a future Teamspe
 
 If you want the latest `-SNAPSHOT`:
 
-```
+```xml
 <repositories>
 	<repository>
 	    <id>jitpack.io</id>
@@ -34,7 +34,7 @@ If you want the latest `-SNAPSHOT`:
 
 # Connection & Basic Setup
 
-```
+```java
 client = new LocalTeamspeakClientSocket();
 
 // Set up client
@@ -66,7 +66,7 @@ You can interact with the server using the commands on the `client` object simil
 
 # Handling chat
 
-```
+```java
 // TS3Listener interface
 @Override
 public void onTextMessage(TextMessageEvent textMessageEvent) {
@@ -83,7 +83,7 @@ public void onTextMessage(TextMessageEvent textMessageEvent) {
 
 # Sending audio
 
-```
+```java
 // Microphone interface
 public void write(float[] buffer, int len) {
 	byte[] opusPacket = doOpusEncodingHere(buffer, len);
