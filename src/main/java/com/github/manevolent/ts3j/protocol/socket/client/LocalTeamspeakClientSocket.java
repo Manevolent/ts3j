@@ -433,13 +433,8 @@ public class LocalTeamspeakClientSocket
         if (processor != null) {
             processor.process(client, singleCommand);
         } else if (singleCommand.getName().startsWith("notify")) {
-            try {
-                TS3Event event = TS3Event.createEvent(singleCommand);
-                commandExecutionService.submit(() -> listeners.forEach(event::fire));
-            } catch (IllegalArgumentException exception) {
-                exception.printStackTrace();
-            }
-
+            TS3Event event = TS3Event.createEvent(singleCommand);
+            commandExecutionService.submit(() -> listeners.forEach(event::fire));
         } else {
             CommandProcessor awaitingCommandProcessor;
 

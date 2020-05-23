@@ -57,4 +57,5 @@ public interface TS3Listener {
     default void onClientChatClosed(ClientChatClosedEvent e) {}
     default void onClientPermHints(ClientPermHintsEvent e) {}
     default void onChannelPermHints(ChannelPermHintsEvent e) {}
+    default void onUnknownEvent(UnknownTeamspeakEvent e){}
 }

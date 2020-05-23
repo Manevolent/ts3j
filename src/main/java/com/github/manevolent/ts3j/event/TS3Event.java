@@ -88,7 +88,7 @@ public interface TS3Event {
 	    case "notifychannelpermhints": // CLIENT
 		return new ChannelPermHintsEvent(command.toMap());
 	    default:
-		throw new IllegalArgumentException("unknown event: " + command.getName());
+	    return new UnknownTeamspeakEvent(command.getName(),command.toMap());
 	}
     }
 }
