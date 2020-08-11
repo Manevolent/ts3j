@@ -2,17 +2,23 @@
 
 TS3J is an open-source implementation of the reverse-engineered Teamspeak3 full server/client protocol, as an adaptation of Splamy's C# TS3Client source code.  You can find that here: https://github.com/Splamy/TS3AudioBot/.
 
-This project is the network-level API library for the reference implementation of Teamspeak3 for **Manebot**, my multiplatform chatbot that you can extend with your own plugins.  GitHub: https://github.com/Manevolent/manebot-ts3
-
 A standalone proof-of-concept was created to wrap ts3j: https://github.com/Manevolent/ts3j-musicbot
-
-(Shameless plug) If you want to deliver a great music bot, check out ffmpeg4j, a wrapper around the native C library FFmpeg, to get insanely low CPU usage on your YouTube video downloads (or streams if you don't want to hit disk), and audio playback:
-
-https://github.com/Manevolent/ffmpeg4j
 
 # A note about Teamspeak 5
 
 I don't believe TS3j will need any major adjustments to work in a future Teamspeak5 world, based on what I have been able to get my hands on with TS5.  I've verified that TS3j does in fact work alongside TS5 clients, all connected to a "TS3" server.  There may be missing features that TS5 brings to the table, but those can be solved through issues and enhancement requests as they are identified.
+
+# Projects using TS3j
+
+TS3j has gotten a decent amount of attention for helping Java developers directly interact with Teamspeak3 servers and pipe audio for music bots, etc.  Maybe you're looking to build your idea on top of TS3j, but it's already been shared open-source.  That could save you a bunch of time!
+
+| Name                     | GitHub                                    | Description                                                                                                                                                                                                                                                                                                                                     |
+|--------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| JeakBot Plugin Framework | https://github.com/jeakfrw/jeak-framework | The JeakBot-Framework connects to the TeamSpeak server using the TS3 sever query interface.  Java plugins can use the API to interact with the TeamSpeak server using the JeakBot-API.  Plugins can be programmed in a way that developers may be familiar from the Sponge plugin API for Minecraft as the projects idea is inspired by Sponge. |
+| Manebot                  | https://github.com/Manevolent/manebot-ts3 | The reference implementation of the Teamspeak3 platform for Manebot, a multi-platform chatbot framework.  You can use this plugin to get Manebot to interact with your Teamspeak3 server(s).                                                                                                                                                    |
+
+If you made a project with TS3j on GitHub and would like to help people find it, feel free to let me know/open an issue and I'll add it here for you.
+
 
 # Maven
 
