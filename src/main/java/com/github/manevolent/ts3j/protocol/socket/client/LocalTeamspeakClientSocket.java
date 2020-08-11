@@ -388,7 +388,7 @@ public class LocalTeamspeakClientSocket
 
             setOption("client.hostname", remote.getHostString());
 
-            if (password != null && password.length() > 0) setOption("client.password", password);
+            if (password != null && password.length() > 0) setOption("client.server_password", password);
 
             setTransformation(new InitPacketTransformation());
             setState(ClientConnectionState.CONNECTING);
