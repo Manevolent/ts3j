@@ -387,6 +387,7 @@ public class LocalTeamspeakClientSocket
             }
 
             setOption("client.hostname", remote.getHostString());
+            setOption("client.channel_commander", false);
 
             if (password != null && password.length() > 0) setOption("client.server_password", password);
 
@@ -1258,6 +1259,24 @@ public class LocalTeamspeakClientSocket
             return iterator.next();
         else
             return null;
+    }
+    
+    public void setChannelCommander(boolean commander) throws IOException, TimeoutException {
+        Command command = new SingleCommand("clientupdate", ProtocolRole.CLIENT);
+        if(commander) {
+            if(getChannelCommander() == true) return;
+            command.add(new CommandSingleParameter("client_is_channel_commander", "1"));
+            setOption("client.channel_commander", true);
+        } else {
+            if(getChannelCommander() == false) return;
+            command.add(new CommandSingleParameter("client_is_channel_commander", "0"));
+            setOption("client.channel_commander", false);
+        }
+        executeCommand(command);
+    }
+    
+    public boolean getChannelCommander() {
+        return getOption("client.channel_commander", Boolean.class);
     }
 
     public void disconnect()
